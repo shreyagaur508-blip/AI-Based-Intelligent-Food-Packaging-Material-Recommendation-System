@@ -16,6 +16,11 @@ router = APIRouter()
     summary="List all packaging materials",
     description="Retrieve packaging materials with standardized ASTM barrier values (OTR, WVTR), mechanical ratings, and sustainability scores.",
 )
+@router.get(
+    "/",
+    response_model=List[PackagingMaterialResponse],
+    include_in_schema=False,
+)
 def list_materials(
     material_type: Optional[str] = Query(None, description="Filter by material type / polymer family"),
     cost_level: Optional[str] = Query(None, description="Filter by cost tier (Budget, Moderate, Premium)"),

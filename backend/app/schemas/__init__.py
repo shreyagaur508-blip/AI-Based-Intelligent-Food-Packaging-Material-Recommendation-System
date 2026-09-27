@@ -21,6 +21,15 @@ from app.schemas.packaging_material import (
     PackagingMaterialListResponse,
 )
 from app.schemas.dashboard import DashboardSummaryResponse
+from app.schemas.recommendation import (
+    RecommendationRequest,
+    RiskProfile,
+    ThicknessRange,
+    MaterialScoreBreakdown,
+    MaterialRecommendationItem,
+    DisqualifiedMaterial,
+    RecommendationResponse,
+)
 
 __all__ = [
     "CommodityBase",
@@ -38,4 +47,11 @@ __all__ = [
     "PackagingMaterialSummaryResponse",
     "PackagingMaterialListResponse",
     "DashboardSummaryResponse",
+    "RecommendationRequest",
+    "RiskProfile",
+    "ThicknessRange",
+    "MaterialScoreBreakdown",
+    "MaterialRecommendationItem",
+    "DisqualifiedMaterial",
+    "RecommendationResponse",
 ]

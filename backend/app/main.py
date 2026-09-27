@@ -12,7 +12,7 @@ from sqlalchemy import text
 
 from app.core.config import settings
 from app.db.base import Base
-from app.db.session import engine, get_db
+from app.db.session import engine, SessionLocal, get_db
 from app.api.router import api_router
 from app.seed.seed_data import seed_database
 
@@ -24,7 +24,7 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
 
     # Seed default data on startup
-    db = Session(bind=engine)
+    db = SessionLocal()
     try:
         seed_database(db)
     finally:
@@ -50,7 +50,12 @@ app = FastAPI(
 # Configure CORS Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS if isinstance(settings.CORS_ORIGINS, list) else ["*"],
+    allow_origins=settings.CORS_ORIGINS if isinstance(settings.CORS_ORIGINS, list) else [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -64,25 +69,18 @@ app.add_middleware(
     description="Check the operational status of the FastAPI backend and database connection.",
     response_model=Dict[str, Any],
 )
-def health_check(db: Session = Depends(get_db)):
-    """Health check endpoint to verify service and database connectivity."""
-    db_status = "connected"
-    try:
-        db.execute(text("SELECT 1"))
-    except Exception as e:
-        db_status = f"error: {str(e)}"
-
+def health_check():
+    """Health check endpoint to verify service operational status."""
     return {
-        "status": "healthy" if db_status == "connected" else "degraded",
-        "service": settings.APP_NAME,
-        "environment": settings.APP_ENV,
-        "version": "1.0.0",
-        "database": db_status,
+        "status": "ok",
+        "service": "PackWise AI API",
     }
 
 
 # Include main API router under /api
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+# Also include without prefix as fallback
+app.include_router(api_router, include_in_schema=False)
 
 
 @app.get("/", tags=["System Health"], include_in_schema=False)

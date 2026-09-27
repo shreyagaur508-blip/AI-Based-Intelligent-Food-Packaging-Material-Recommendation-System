@@ -16,6 +16,11 @@ router = APIRouter()
     summary="List all food commodities",
     description="Retrieve food commodities with optional filtering by category or keyword search.",
 )
+@router.get(
+    "/",
+    response_model=List[CommodityResponse],
+    include_in_schema=False,
+)
 def list_commodities(
     category: Optional[str] = Query(None, description="Filter by commodity category"),
     search: Optional[str] = Query(None, description="Keyword search across commodity names and notes"),

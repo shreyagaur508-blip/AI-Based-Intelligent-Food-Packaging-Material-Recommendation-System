@@ -1,8 +1,8 @@
-# PackWise AI — Backend Service Layer (Phase 2)
+# PackWise AI — Backend Service Layer (Phases 2 & 3)
 
 FastAPI REST backend service for **PackWise AI — Intelligent Food Packaging Material Recommendation System**.
 
-Provides high-performance endpoints for querying food commodity degradation characteristics, ASTM-standardized barrier packaging materials, and administrative system indicators.
+Provides high-performance endpoints for querying food commodity degradation characteristics, ASTM-standardized barrier packaging materials, administrative system indicators, and the deterministic **6-stage Explainable Packaging Recommendation Engine**.
 
 ---
 
@@ -13,6 +13,7 @@ Provides high-performance endpoints for querying food commodity degradation char
 - **ASGI Server:** [Uvicorn](https://www.uvicorn.org/)
 - **ORM & Data Layer:** [SQLAlchemy 2.0](https://www.sqlalchemy.org/)
 - **Validation & Serialization:** [Pydantic v2](https://docs.pydantic.dev/latest/)
+- **Recommendation Engine:** Pure Python Deterministic MCDA + Rule-based Barrier Risk Engine
 - **Database:** SQLite (local development) / PostgreSQL (production-ready)
 - **Environment Management:** `python-dotenv` & `.env`
 - **Testing:** `pytest` & `httpx` (FastAPI TestClient)
@@ -28,13 +29,21 @@ backend/
 │   │   ├── v1/
 │   │   │   ├── admin.py            # GET /api/admin/dashboard-summary
 │   │   │   ├── commodities.py      # GET /api/commodities, GET /api/commodities/{id}
-│   │   │   └── materials.py        # GET /api/materials, GET /api/materials/{id}
+│   │   │   ├── materials.py        # GET /api/materials, GET /api/materials/{id}
+│   │   │   └── recommendations.py  # POST /api/recommendations
 │   │   └── router.py               # Master API router
 │   ├── core/
 │   │   ├── config.py               # Environment & CORS configuration
 │   ├── db/
 │   │   ├── base.py                 # SQLAlchemy DeclarativeBase
 │   │   └── session.py              # Engine, SessionLocal, get_db dependency
+│   ├── engine/                     # Core Explainable Recommendation Engine (Phase 3)
+│   │   ├── candidate_filter.py     # Hard constraint elimination (Safety, Anoxia, Low Temp)
+│   │   ├── explainability.py       # Scientific reasoning & alternative pick assembly
+│   │   ├── recommender.py          # 6-Stage pipeline orchestrator
+│   │   ├── requirement_formulator.py # ASTM barrier, seal, and MAP derivation
+│   │   ├── risk_profiler.py        # Food degradation risk classifier
+│   │   └── scorer.py               # Multi-Criteria Decision Analysis (MCDA) scorer
 │   ├── models/
 │   │   ├── commodity.py            # Commodity ORM model
 │   │   ├── packaging_material.py   # PackagingMaterial ORM model
@@ -47,19 +56,22 @@ backend/
 │   │   ├── commodity.py            # Pydantic schemas for Commodity
 │   │   ├── packaging_material.py   # Pydantic schemas for PackagingMaterial
 │   │   ├── material_property.py    # Pydantic schemas for MaterialProperty
-│   │   └── dashboard.py            # Pydantic schema for Admin Dashboard
+│   │   ├── dashboard.py            # Pydantic schema for Admin Dashboard
+│   │   └── recommendation.py       # Pydantic schemas for Recommendation Engine
 │   ├── seed/
 │   │   └── seed_data.py            # Seed script (12 commodities, 11 materials, ASTM rules)
 │   ├── services/
 │   │   ├── admin_service.py        # Dashboard metrics computation
 │   │   ├── commodity_service.py    # Commodity data access & search
-│   │   └── material_service.py     # Material data access & filtering
+│   │   ├── material_service.py     # Material data access & filtering
+│   │   └── recommendation_service.py # Recommendation execution & DB logging
 │   ├── tests/
 │   │   ├── conftest.py             # Pytest in-memory database fixtures
 │   │   ├── test_admin.py           # Dashboard API tests
 │   │   ├── test_commodities.py     # Commodity API tests
 │   │   ├── test_health.py          # Health check API tests
-│   │   └── test_materials.py       # Packaging materials API tests
+│   │   ├── test_materials.py       # Packaging materials API tests
+│   │   └── test_recommendations.py # Recommendation engine verification suite
 │   └── main.py                     # Application entry point & CORS
 ├── .env.example                    # Environment template
 ├── .env                            # Local environment configuration
@@ -356,7 +368,128 @@ The server will start at: `http://localhost:8000`
 
 ---
 
-### 6. Admin Dashboard Summary
+### 6. Generate Explainable Packaging Recommendation
+- **Endpoint:** `POST /api/recommendations`
+- **Description:** Executes the 6-stage deterministic recommendation engine based on food physiology, degradation risks, and storage conditions.
+- **Example cURL:**
+  ```bash
+  curl -X POST "http://localhost:8000/api/recommendations" \
+    -H "Content-Type: application/json" \
+    -d '{
+      "commodity_name": "Potato Chips",
+      "commodity_category": "Dry Crisp Foods",
+      "moisture_percent": 1.8,
+      "oil_fat_level": "high",
+      "pH": 6.0,
+      "respiration_rate": "none",
+      "desired_shelf_life_days": 180,
+      "storage_type": "ambient",
+      "storage_temperature": 22.0,
+      "relative_humidity": 50.0,
+      "sustainability_preference": "balanced"
+    }'
+  ```
+- **Sample Response (200 OK):**
+  ```json
+  {
+    "commodity_summary": {
+      "name": "Potato Chips",
+      "category": "Dry Crisp Foods",
+      "moisture_percent": 1.8,
+      "oil_fat_level": "high",
+      "respiration_rate": "none",
+      "storage_type": "ambient",
+      "storage_temperature_celsius": 22.0,
+      "relative_humidity_percent": 50.0,
+      "desired_shelf_life_days": 180
+    },
+    "risk_profile": {
+      "moisture_risk": "Critical",
+      "oxidation_risk": "Critical",
+      "microbial_spoilage_risk": "Low",
+      "respiration_risk": "None",
+      "mechanical_damage_risk": "High",
+      "freezer_burn_risk": "None",
+      "risk_summary": "Moisture sensitivity requiring strict vapor barrier; Lipid oxidation susceptibility requiring low oxygen permeability; Vulnerability to crushing/flex-cracking during distribution"
+    },
+    "otr_requirement_category": "low",
+    "wvtr_requirement_category": "low",
+    "suggested_thickness_range_microns": {
+      "min_microns": 25.0,
+      "max_microns": 45.0,
+      "recommended_microns": 32.0
+    },
+    "sealability_requirement": "Hermetic High-Integrity Fusion Seal (Zero Micro-channel Leakage)",
+    "mechanical_strength_requirement": "High Tensile Modulus & Flex-Crack Resistance to Prevent Pinholing",
+    "map_suitability": "Recommended: 100% High-Purity Nitrogen (N2) Gas Flushing (Residual O2 < 1.0%) to prevent oxidative rancidity and provide pillow cushioning.",
+    "breathable_or_microperforated_recommendation": "Not recommended: Hermetic solid barrier required to maintain inert gas flush and exclude ambient oxygen.",
+    "storage_recommendation": "Store in cool, dry ambient warehouse conditions at 22.0°C and relative humidity <= 60% away from direct UV/sunlight.",
+    "cost_class": "Moderate to Premium",
+    "sustainability_score": 65.0,
+    "recommended_packaging_structure": "Met-PET (Metallized PET) (Vacuum Metallized PET Film) — Designed for Potato Chips preservation.",
+    "primary_recommendation": {
+      "material_id": 6,
+      "material_name": "Met-PET (Metallized PET)",
+      "material_type": "Barrier Film",
+      "structure": "Vacuum Metallized PET Film",
+      "recommendation_type": "Primary Recommendation",
+      "cost_level": "Moderate",
+      "sustainability_score": 65.0,
+      "scores": {
+        "total_score": 85.2,
+        "barrier_score": 95.0,
+        "mechanical_score": 76.5,
+        "cost_score": 80.0,
+        "sustainability_score": 65.0
+      },
+      "highlight": "Best Overall Match across Barrier, Mechanical, Cost & Sustainability criteria.",
+      "explanation": "Optimal balance for Potato Chips: provides required barrier protection with high processability.",
+      "properties_summary": {
+        "OTR": "1.20 cm3/(m2.24h.atm)",
+        "WVTR": "1.00 g/(m2.24h)",
+        "Thickness": "12 µm",
+        "Tensile Strength": "180.0 MPa"
+      }
+    },
+    "alternative_recommendations": [
+      {
+        "material_id": 11,
+        "material_name": "PET/EVOH/PE recyclable (High-Barrier Recyclable Co-ex)",
+        "material_type": "Recyclable Barrier Laminate",
+        "structure": "High-Barrier Co-extrusion with Compatibilized EVOH Layer (<5%)",
+        "recommendation_type": "Alternative (Eco Choice)",
+        "cost_level": "Premium",
+        "sustainability_score": 88.0,
+        "scores": {
+          "total_score": 83.1,
+          "barrier_score": 93.0,
+          "mechanical_score": 83.8,
+          "cost_score": 60.0,
+          "sustainability_score": 88.0
+        },
+        "highlight": "Highest sustainability and recyclability rating among qualified candidates.",
+        "explanation": "Eco-optimized choice: High (RecyClass Certified Stream), Non-biodegradable.",
+        "properties_summary": {
+          "OTR": "2.00 cm3/(m2.24h.atm)",
+          "WVTR": "2.50 g/(m2.24h)",
+          "Thickness": "65 µm"
+        }
+      }
+    ],
+    "disqualified_materials": [],
+    "explanatory_reasons": [
+      "Oxidation & Crispness Defense: The structure provides superior oxygen and water vapor barriers (OTR < 2.0 cm³/m²·day, WVTR < 1.5 g/m²·day) to block lipid auto-oxidation rancidity and prevent moisture sorption sogginess.",
+      "Mechanical & Seal Reliability: Scored 76.5/100 in mechanical integrity, delivering strong hermetic sealability (score 7.0/10) and puncture resistance (score 7.5/10) to withstand distribution stress without pinholing.",
+      "Sustainability & Economics: Achieves a composite sustainability rating of 65.0/100 (Low / Mixed) within a Moderate cost tier, balancing environmental circularity with industrial feasibility."
+    ],
+    "warnings": [],
+    "disclaimer": "PackWise AI provides scientific decision support based on ASTM D3985 (OTR) and ASTM F1249 (WVTR) reference standards..."
+  }
+  ```
+
+---
+
+### 7. Admin Dashboard Summary
 - **Endpoint:** `GET /api/admin/dashboard-summary`
 - **Example cURL:**
   ```bash

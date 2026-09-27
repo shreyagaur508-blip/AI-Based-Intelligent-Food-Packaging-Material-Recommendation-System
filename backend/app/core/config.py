@@ -13,7 +13,7 @@ load_dotenv()
 class Settings(BaseModel):
     """Core settings for the PackWise AI backend."""
 
-    APP_NAME: str = os.getenv("APP_NAME", "PackWise AI Backend")
+    APP_NAME: str = os.getenv("APP_NAME", "PackWise AI API")
     APP_ENV: str = os.getenv("APP_ENV", "development")
     DEBUG: bool = os.getenv("DEBUG", "True").lower() in ("true", "1", "t", "yes")
     API_V1_PREFIX: str = os.getenv("API_V1_PREFIX", "/api")
@@ -22,10 +22,12 @@ class Settings(BaseModel):
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./packwise.db")
 
     # CORS Allowed Origins
-    CORS_ORIGINS: Union[List[str], str] = os.getenv(
-        "CORS_ORIGINS",
-        '["http://localhost:5173","http://127.0.0.1:5173","http://localhost:3000","http://127.0.0.1:3000"]',
-    )
+    CORS_ORIGINS: List[str] = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
@@ -40,7 +42,12 @@ class Settings(BaseModel):
             return [i.strip() for i in v.split(",") if i.strip()]
         elif isinstance(v, list):
             return v
-        return ["http://localhost:5173", "http://127.0.0.1:5173"]
+        return ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000", "http://127.0.0.1:3000"]
 
 
-settings = Settings()
+settings = Settings(
+    CORS_ORIGINS=os.getenv(
+        "CORS_ORIGINS",
+        '["http://localhost:5173","http://127.0.0.1:5173","http://localhost:3000","http://127.0.0.1:3000"]',
+    )
+)

@@ -2,14 +2,12 @@
 
 
 def test_health_check(client):
-    """Test that the GET /health endpoint returns 200 OK and connected database."""
+    """Test that the GET /health endpoint returns 200 OK with expected status and service."""
     response = client.get("/health")
     assert response.status_code == 200
     data = response.json()
-    assert data["status"] == "healthy"
-    assert data["database"] == "connected"
-    assert "version" in data
-    assert "service" in data
+    assert data["status"] == "ok"
+    assert data["service"] == "PackWise AI API"
 
 
 def test_root_endpoint(client):
