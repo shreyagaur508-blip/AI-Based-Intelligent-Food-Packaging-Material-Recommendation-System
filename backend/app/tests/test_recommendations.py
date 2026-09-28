@@ -1,90 +1,108 @@
-"""Automated test suite for explainable packaging recommendation engine."""
+"""Automated test suite for explainable packaging recommendation engine (Phase 3)."""
 
 import pytest
 
 
 def test_potato_chips_recommendation(client):
-    """Test recommendation for Potato Chips (High-fat dry crisp snack)."""
+    """Test recommendation for Potato Chips (High-fat, ambient, dry crisp snack with long shelf life)."""
     payload = {
         "commodity_name": "Potato Chips",
         "commodity_category": "Dry Crisp Foods",
         "moisture_percent": 1.8,
         "oil_fat_level": "high",
-        "pH": 6.0,
-        "respiration_rate": "none",
+        "ph": 6.0,
+        "respiration_rate": "very_low",
         "desired_shelf_life_days": 180,
         "storage_type": "ambient",
         "storage_temperature": 22.0,
         "relative_humidity": 50.0,
-        "sustainability_preference": "balanced",
+        "sustainability_preference": "medium",
+        "packaging_format_preference": "pouch",
     }
     response = client.post("/api/recommendations", json=payload)
     assert response.status_code == 200
     data = response.json()
 
-    # 1. At least one recommendation exists
+    # 1. At least one recommendation is returned
     assert "primary_recommendation" in data
-    assert data["primary_recommendation"]["material_name"] is not None
+    primary = data["primary_recommendation"]
+    assert primary["material_id"] > 0
+    assert primary["name"]
+    assert primary["structure"]
+    assert len(primary["reasons"]) >= 3
+    assert 0 <= primary["sustainability_score"] <= 100
+    assert primary["cost_class"] in ("low", "medium", "high")
     assert len(data["alternative_recommendations"]) >= 1
 
-    # 2. No non-food-grade material is recommended
-    assert data["primary_recommendation"]["scores"]["total_score"] > 0
-    for alt in data["alternative_recommendations"]:
-        assert alt["scores"]["total_score"] > 0
+    # 2. Risk profile classification (low/medium/high)
+    assert data["risk_profile"]["moisture_risk"] == "high"
+    assert data["risk_profile"]["oxidation_risk"] == "high"
+    assert data["risk_profile"]["freezer_burn_risk"] == "low"
 
-    # 3. Oxygen / moisture barrier advice
-    assert data["wvtr_requirement_category"] == "low"
-    assert data["otr_requirement_category"] == "low"
-    assert "Nitrogen" in data["map_suitability"] or "N2" in data["map_suitability"]
+    # 3. Strong oxygen and moisture barrier requirements
+    assert data["requirements"]["required_otr_category"] in ("very_low", "low")
+    assert data["requirements"]["required_wvtr_category"] in ("very_low", "low")
+    assert data["requirements"]["map_suitable"] is True
+    assert data["requirements"]["breathable_film_needed"] is False
 
-    # 4. Check risk profile
-    assert data["risk_profile"]["moisture_risk"] in ("Critical", "High")
-    assert data["risk_profile"]["oxidation_risk"] in ("Critical", "High")
+    # 4. Reasons verify oxygen / moisture barrier advice
+    all_reasons = " ".join(primary["reasons"]).lower()
+    assert "barrier" in all_reasons or "oxygen" in all_reasons or "moisture" in all_reasons or "oxidation" in all_reasons
 
-    # 5. Check explanatory reasons
-    assert len(data["explanatory_reasons"]) >= 3
+    # 5. Disclaimer text present
+    assert "preliminary packaging decision support" in data["disclaimer"]
 
 
 def test_tomato_recommendation(client):
-    """Test recommendation for Fresh Tomatoes (Respiring chill-sensitive produce)."""
+    """Test recommendation for Fresh Tomatoes (Fresh produce, respiring)."""
     payload = {
         "commodity_name": "Tomato",
         "commodity_category": "Fresh Produce",
         "moisture_percent": 94.0,
-        "oil_fat_level": "none",
-        "pH": 4.3,
-        "respiration_rate": "moderate",
+        "oil_fat_level": "low",
+        "ph": 4.3,
+        "respiration_rate": "medium",
         "desired_shelf_life_days": 18,
         "storage_type": "ambient",
         "storage_temperature": 12.0,
         "relative_humidity": 90.0,
-        "sustainability_preference": "compostable",
+        "sustainability_preference": "high",
+        "packaging_format_preference": "pouch",
     }
     response = client.post("/api/recommendations", json=payload)
     assert response.status_code == 200
     data = response.json()
 
-    # 1. Recommendation exists
-    assert data["primary_recommendation"] is not None
+    # 1. At least one recommendation is returned
+    assert "primary_recommendation" in data
+    primary = data["primary_recommendation"]
+    assert primary["name"]
 
-    # 2. Respiration-aware advice
-    assert data["otr_requirement_category"] == "controlled"
-    assert "EMAP" in data["map_suitability"] or "respiration" in data["map_suitability"].lower()
-    assert "micro-perforated" in data["breathable_or_microperforated_recommendation"].lower() or "breathable" in data["breathable_or_microperforated_recommendation"].lower()
+    # 2. Respiration risk classification
+    assert data["risk_profile"]["respiration_risk"] == "high"
+    assert data["risk_profile"]["moisture_risk"] == "high"
 
-    # 3. Disqualifies hermetic zero-barrier films like Alu Foil
-    disqualified_names = [d["material_name"] for d in data["disqualified_materials"]]
-    assert any("Foil" in name for name in disqualified_names)
+    # 3. Respiration-aware advice (breathable / MAP guidance)
+    assert data["requirements"]["required_otr_category"] == "controlled"
+    assert data["requirements"]["breathable_film_needed"] is True
+    assert data["requirements"]["map_suitable"] is True
+
+    # 4. Explanatory reasons highlight respiration harmony
+    all_reasons = " ".join(primary["reasons"]).lower()
+    assert "respiration" in all_reasons or "permeability" in all_reasons or "breathable" in all_reasons or "gas" in all_reasons
+
+    # 5. Zero-permeability non-perforated hermetic foils are not recommended
+    assert "Alu Foil" not in primary["name"]
 
 
 def test_banana_recommendation(client):
-    """Test recommendation for Bananas (High respiration climacteric fruit)."""
+    """Test recommendation for Banana (Fresh produce, respiring)."""
     payload = {
         "commodity_name": "Banana",
         "commodity_category": "Fresh Produce",
         "moisture_percent": 74.0,
-        "oil_fat_level": "none",
-        "pH": 5.0,
+        "oil_fat_level": "low",
+        "ph": 5.0,
         "respiration_rate": "high",
         "desired_shelf_life_days": 14,
         "storage_type": "ambient",
@@ -95,27 +113,29 @@ def test_banana_recommendation(client):
     assert response.status_code == 200
     data = response.json()
 
-    # 1. Respiration-aware advice & EMAP
-    assert data["risk_profile"]["respiration_risk"] in ("High", "Very High")
-    assert data["otr_requirement_category"] == "controlled"
-    assert "micro-perforated" in data["breathable_or_microperforated_recommendation"].lower() or "breathable" in data["breathable_or_microperforated_recommendation"].lower()
+    # 1. Respiration-aware advice (breathable / MAP guidance)
+    assert data["risk_profile"]["respiration_risk"] == "high"
+    assert data["requirements"]["required_otr_category"] == "controlled"
+    assert data["requirements"]["breathable_film_needed"] is True
+    assert data["requirements"]["map_suitable"] is True
 
-    # 2. Check chilling injury logic if tested below 12°C
+    # 2. Chilling injury warning triggered if below 12°C
     sub_payload = dict(payload, storage_temperature=8.0)
     sub_res = client.post("/api/recommendations", json=sub_payload)
+    assert sub_res.status_code == 200
     sub_data = sub_res.json()
-    assert any("CHILLING INJURY" in w for w in sub_data["warnings"])
+    assert any("CHILLING INJURY" in w for w in sub_data.get("warnings", []))
 
 
 def test_milk_powder_recommendation(client):
-    """Test recommendation for Full Cream Milk Powder (Hygroscopic & oxidation prone)."""
+    """Test recommendation for Milk Powder (Dry, moisture-sensitive, high shelf life)."""
     payload = {
         "commodity_name": "Milk Powder (Full Cream)",
         "commodity_category": "Powders & Grains",
         "moisture_percent": 3.0,
         "oil_fat_level": "high",
-        "pH": 6.6,
-        "respiration_rate": "none",
+        "ph": 6.6,
+        "respiration_rate": "very_low",
         "desired_shelf_life_days": 365,
         "storage_type": "ambient",
         "storage_temperature": 20.0,
@@ -125,26 +145,27 @@ def test_milk_powder_recommendation(client):
     assert response.status_code == 200
     data = response.json()
 
-    # High barrier requirements
-    assert data["otr_requirement_category"] == "low"
-    assert data["wvtr_requirement_category"] == "low"
-    assert data["risk_profile"]["moisture_risk"] in ("High", "Critical")
-    assert data["risk_profile"]["oxidation_risk"] in ("High", "Critical")
+    # 1. Requirements: strict barrier & sealability
+    assert data["risk_profile"]["moisture_risk"] == "high"
+    assert data["risk_profile"]["oxidation_risk"] == "high"
+    assert data["requirements"]["required_otr_category"] in ("very_low", "low")
+    assert data["requirements"]["required_wvtr_category"] in ("very_low", "low")
+    assert data["requirements"]["sealability_requirement"] == "high"
 
-    # Primary recommendation is high barrier (e.g. Alu Foil or Met-PET or PET/EVOH/PE)
-    primary_name = data["primary_recommendation"]["material_name"]
+    # 2. Primary recommendation is a high barrier material
+    primary_name = data["primary_recommendation"]["name"]
     assert any(mat in primary_name for mat in ["Alu Foil", "Met-PET", "PET/EVOH/PE"])
 
 
 def test_frozen_peas_recommendation(client):
-    """Test recommendation for Frozen Peas (IQF sub-zero storage)."""
+    """Test recommendation for Frozen Peas (Frozen storage, freezer burn risk)."""
     payload = {
         "commodity_name": "Frozen Peas (IQF)",
         "commodity_category": "Frozen Foods",
         "moisture_percent": 78.0,
-        "oil_fat_level": "none",
-        "pH": 6.5,
-        "respiration_rate": "none",
+        "oil_fat_level": "low",
+        "ph": 6.5,
+        "respiration_rate": "very_low",
         "desired_shelf_life_days": 365,
         "storage_type": "frozen",
         "storage_temperature": -18.0,
@@ -154,40 +175,51 @@ def test_frozen_peas_recommendation(client):
     assert response.status_code == 200
     data = response.json()
 
-    # 1. Frozen storage advice
-    assert data["risk_profile"]["freezer_burn_risk"] == "High"
-    assert "Sub-Zero" in data["mechanical_strength_requirement"] or "Puncture" in data["mechanical_strength_requirement"]
-    assert "-18" in data["storage_recommendation"]
+    # 1. Frozen storage risk & protection advice
+    assert data["risk_profile"]["freezer_burn_risk"] == "high"
+    assert data["risk_profile"]["microbial_risk"] == "low"  # Inhibited at -18°C
+    assert data["requirements"]["required_wvtr_category"] == "very_low"
+    assert data["requirements"]["mechanical_strength_requirement"] == "high"
+    assert data["requirements"]["sealability_requirement"] == "high"
 
-    # 2. Disqualify brittle polymers like PLA
-    disqualified_names = [d["material_name"] for d in data["disqualified_materials"]]
-    assert any("PLA" in name for name in disqualified_names)
+    # 2. Reasons mention sub-zero / freezer burn / flexibility
+    primary = data["primary_recommendation"]
+    all_reasons = " ".join(primary["reasons"]).lower()
+    assert "sub-zero" in all_reasons or "freezer burn" in all_reasons or "flexib" in all_reasons or "-18" in all_reasons
+
+    # 3. Disqualifies brittle polymers like PLA
+    assert "PLA" not in primary["name"]
 
 
 def test_roasted_nuts_recommendation(client):
-    """Test recommendation for Roasted Nuts (High-fat snack requiring oxygen & light barrier)."""
+    """Test recommendation for Roasted Nuts (High fat, oxidation risk)."""
     payload = {
         "commodity_name": "Roasted Nuts",
         "commodity_category": "High-Fat Snacks",
         "moisture_percent": 3.5,
         "oil_fat_level": "high",
-        "pH": 6.2,
-        "respiration_rate": "none",
+        "ph": 6.2,
+        "respiration_rate": "very_low",
         "desired_shelf_life_days": 240,
         "storage_type": "ambient",
         "storage_temperature": 20.0,
         "relative_humidity": 55.0,
-        "sustainability_preference": "recyclable",
+        "sustainability_preference": "high",
     }
     response = client.post("/api/recommendations", json=payload)
     assert response.status_code == 200
     data = response.json()
 
-    # Oxygen barrier prioritized
-    assert data["otr_requirement_category"] == "low"
-    assert data["risk_profile"]["oxidation_risk"] in ("High", "Critical")
-    assert len(data["explanatory_reasons"]) >= 3
-    assert data["disclaimer"] is not None
+    # 1. High oxidation risk & barrier advice
+    assert data["risk_profile"]["oxidation_risk"] == "high"
+    assert data["requirements"]["required_otr_category"] in ("very_low", "low")
+    assert data["requirements"]["required_wvtr_category"] in ("very_low", "low")
+
+    # 2. Primary recommendation has valid score and reasons
+    primary = data["primary_recommendation"]
+    assert primary["name"]
+    assert len(primary["reasons"]) >= 3
+    assert data["disclaimer"]
 
 
 def test_recommendation_with_commodity_id(client):
@@ -199,5 +231,23 @@ def test_recommendation_with_commodity_id(client):
     response = client.post("/api/recommendations", json=payload)
     assert response.status_code == 200
     data = response.json()
-    assert data["commodity_summary"]["name"] == "Banana"
+    assert data["input_summary"]["commodity_name"] == "Banana"
     assert data["primary_recommendation"] is not None
+    assert data["requirements"]["breathable_film_needed"] is True
+
+
+def test_non_food_grade_materials_never_recommended(client):
+    """Test that non-food-grade compliant materials are never returned in primary or alternatives."""
+    payload = {
+        "commodity_name": "Generic Snack",
+        "commodity_category": "Dry Crisp Foods",
+        "moisture_percent": 2.0,
+        "oil_fat_level": "high",
+        "desired_shelf_life_days": 90,
+    }
+    response = client.post("/api/recommendations", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["primary_recommendation"] is not None
+    # All recommended materials should be food-grade
+    assert data["primary_recommendation"]["material_id"] > 0

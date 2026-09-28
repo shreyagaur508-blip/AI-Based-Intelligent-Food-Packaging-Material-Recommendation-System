@@ -1,8 +1,8 @@
 """Pydantic schemas for Packaging Recommendation API."""
 
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class RecommendationRequest(BaseModel):
@@ -17,12 +17,13 @@ class RecommendationRequest(BaseModel):
     moisture_percent: Optional[float] = Field(None, ge=0.0, le=100.0, description="Product moisture content percentage")
     oil_fat_level: Optional[str] = Field(
         None,
-        description="Lipid content level: 'none', 'low', 'moderate', 'high'",
+        description="Lipid content level: 'low', 'medium', 'high', 'very_high', 'none', 'moderate'",
     )
-    pH: Optional[float] = Field(None, ge=0.0, le=14.0, description="Product baseline pH")
+    ph: Optional[float] = Field(None, ge=0.0, le=14.0, description="Product baseline pH")
+    pH: Optional[float] = Field(None, ge=0.0, le=14.0, description="Product baseline pH (alias)")
     respiration_rate: Optional[str] = Field(
         None,
-        description="Respiration class: 'none', 'low', 'moderate', 'high', 'very_high'",
+        description="Respiration class: 'very_low', 'low', 'medium', 'high', 'very_high', 'none'",
     )
     desired_shelf_life_days: Optional[int] = Field(None, gt=0, description="Target preservation shelf life in days")
     storage_type: Optional[str] = Field(
@@ -33,29 +34,70 @@ class RecommendationRequest(BaseModel):
     relative_humidity: Optional[float] = Field(None, ge=0.0, le=100.0, description="Storage relative humidity percentage")
     transportation_condition: Optional[str] = Field(
         None,
-        description="Transit environment (e.g., 'Ambient Standard', 'Reefer Cold Chain', 'High-Humidity Marine')",
+        description="Transit environment: 'local', 'regional', 'long_distance'",
     )
-    transportation_duration: Optional[float] = Field(None, ge=0.0, description="Transit duration in days")
+    transportation_duration_days: Optional[int] = Field(None, ge=0, description="Transit duration in days")
+    transportation_duration: Optional[float] = Field(None, ge=0.0, description="Transit duration in days (alias)")
     sustainability_preference: Optional[str] = Field(
-        "balanced",
-        description="Sustainability goal: 'balanced', 'recyclable', 'compostable', 'minimal_carbon'",
+        None,
+        description="Sustainability goal: 'low', 'medium', 'high', 'balanced', 'recyclable', 'compostable'",
     )
     packaging_format_preference: Optional[str] = Field(
         None,
-        description="Format: 'Pillow Pouch', 'Stand-up Pouch (Doypack)', 'Perforated Bag / Clamshell', 'Vacuum Skin Packaging (VSP)', 'MAP Tray'",
+        description="Format: 'pouch', 'bottle', 'tray', 'box', 'other'",
     )
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+    @property
+    def ph_value(self) -> Optional[float]:
+        """Resolve pH value regardless of casing."""
+        if self.ph is not None:
+            return self.ph
+        return self.pH
+
+    @property
+    def transport_days(self) -> Optional[int]:
+        """Resolve transportation days regardless of field name."""
+        if self.transportation_duration_days is not None:
+            return self.transportation_duration_days
+        if self.transportation_duration is not None:
+            return int(self.transportation_duration)
+        return None
 
 
 class RiskProfile(BaseModel):
     """Calculated food vulnerability and degradation risks."""
 
-    moisture_risk: str = Field(..., description="Moisture sorption / loss risk: 'Low', 'Moderate', 'High', 'Critical'")
-    oxidation_risk: str = Field(..., description="Lipid oxidation / rancidity risk: 'Low', 'Moderate', 'High', 'Critical'")
-    microbial_spoilage_risk: str = Field(..., description="Bacterial / fungal spoilage risk: 'Low', 'Moderate', 'High', 'Critical'")
-    respiration_risk: str = Field(..., description="Metabolic respiration / anoxia risk: 'None', 'Low', 'Moderate', 'High', 'Very High'")
-    mechanical_damage_risk: str = Field(..., description="Transit shock / abrasion risk: 'Low', 'Moderate', 'High'")
-    freezer_burn_risk: str = Field(..., description="Sublimation / frost risk: 'None', 'Low', 'Moderate', 'High'")
-    risk_summary: str = Field(..., description="Summary overview of primary degradation pathways")
+    moisture_risk: str = Field(..., description="Moisture sorption / loss risk: 'low', 'medium', 'high'")
+    oxidation_risk: str = Field(..., description="Lipid oxidation / rancidity risk: 'low', 'medium', 'high'")
+    microbial_risk: str = Field(..., description="Microbial spoilage risk: 'low', 'medium', 'high'")
+    respiration_risk: str = Field(..., description="Metabolic respiration risk: 'low', 'medium', 'high'")
+    mechanical_damage_risk: str = Field(..., description="Mechanical damage risk: 'low', 'medium', 'high'")
+    freezer_burn_risk: str = Field(..., description="Freezer burn / sublimation risk: 'low', 'medium', 'high'")
+    microbial_spoilage_risk: Optional[str] = None
+    risk_summary: Optional[str] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def populate_aliases(cls, values: Any) -> Any:
+        if isinstance(values, dict):
+            if "microbial_spoilage_risk" not in values and "microbial_risk" in values:
+                values["microbial_spoilage_risk"] = values["microbial_risk"]
+            if "microbial_risk" not in values and "microbial_spoilage_risk" in values:
+                values["microbial_risk"] = values["microbial_spoilage_risk"]
+        return values
+
+
+class PackagingRequirements(BaseModel):
+    """Derived technical packaging requirements."""
+
+    required_otr_category: str = Field(..., description="'very_low', 'low', 'medium', 'high', 'controlled'")
+    required_wvtr_category: str = Field(..., description="'very_low', 'low', 'medium', 'high'")
+    map_suitable: bool = Field(..., description="Whether Modified Atmosphere Packaging is suitable")
+    breathable_film_needed: bool = Field(..., description="Whether breathable / microperforated film is required")
+    mechanical_strength_requirement: str = Field(..., description="'low', 'medium', 'high'")
+    sealability_requirement: str = Field(..., description="'low', 'medium', 'high'")
 
 
 class ThicknessRange(BaseModel):
@@ -76,25 +118,41 @@ class MaterialScoreBreakdown(BaseModel):
     sustainability_score: float = Field(..., ge=0.0, le=100.0)
 
 
-class MaterialRecommendationItem(BaseModel):
+class RecommendationItem(BaseModel):
     """Detailed recommendation entry for a packaging material."""
 
     material_id: int
-    material_name: str
-    material_type: str
-    structure: str
-    recommendation_type: str = Field(
-        ...,
-        description="'Primary Recommendation', 'Alternative (Eco Choice)', 'Alternative (Budget Pick)', 'Alternative (High-Barrier Pick)'",
-    )
-    cost_level: str
-    sustainability_score: float
-    scores: MaterialScoreBreakdown
-    highlight: str
-    explanation: str
+    name: str = Field(..., description="Material commercial name")
+    structure: str = Field(..., description="Material layer structure")
+    reasons: List[str] = Field(default_factory=list, description="Structured explanatory reasons")
+    sustainability_score: float = Field(..., ge=0.0, le=100.0, description="Sustainability rating (0-100)")
+    cost_class: str = Field(..., description="Cost classification tier: 'low', 'medium', 'high'")
+
+    # Optional extended properties
+    material_name: Optional[str] = None
+    material_type: Optional[str] = None
+    recommendation_type: Optional[str] = None
+    cost_level: Optional[str] = None
+    scores: Optional[MaterialScoreBreakdown] = None
+    highlight: Optional[str] = None
+    explanation: Optional[str] = None
     properties_summary: Optional[Dict[str, Any]] = None
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    @model_validator(mode="before")
+    @classmethod
+    def sync_names(cls, values: Any) -> Any:
+        if isinstance(values, dict):
+            if "name" in values and "material_name" not in values:
+                values["material_name"] = values["name"]
+            elif "material_name" in values and "name" not in values:
+                values["name"] = values["material_name"]
+        return values
+
+
+MaterialRecommendationItem = RecommendationItem
+
 
 
 class DisqualifiedMaterial(BaseModel):
@@ -108,32 +166,30 @@ class DisqualifiedMaterial(BaseModel):
 class RecommendationResponse(BaseModel):
     """Comprehensive explainable packaging recommendation response."""
 
-    commodity_summary: Dict[str, Any]
+    input_summary: Dict[str, Any]
     risk_profile: RiskProfile
-    otr_requirement_category: str = Field(..., description="'low', 'medium', 'high', 'controlled'")
-    wvtr_requirement_category: str = Field(..., description="'low', 'medium', 'high'")
-    suggested_thickness_range_microns: ThicknessRange
-    sealability_requirement: str = Field(..., description="Required heat seal integrity standard")
-    mechanical_strength_requirement: str = Field(..., description="Required tensile & puncture resistance standard")
-    map_suitability: str = Field(..., description="Modified atmosphere packaging suitability and gas mix advice")
-    breathable_or_microperforated_recommendation: str = Field(
-        ...,
-        description="Breathable or laser micro-perforated film recommendation",
-    )
-    storage_recommendation: str = Field(..., description="Storage temperature and environmental handling instructions")
-    cost_class: str = Field(..., description="Cost classification tier: 'Budget', 'Moderate', 'Premium'")
-    sustainability_score: float = Field(..., ge=0.0, le=100.0, description="Overall sustainability rating (0-100)")
-    recommended_packaging_structure: str = Field(..., description="Engineered multilayer / monolayer structure description")
-    primary_recommendation: MaterialRecommendationItem
-    alternative_recommendations: List[MaterialRecommendationItem]
-    disqualified_materials: List[DisqualifiedMaterial] = []
-    explanatory_reasons: List[str] = Field(..., min_length=3, description="At least three structured scientific justifications")
-    warnings: List[str] = Field(default_factory=list, description="Critical spoilage, chilling, or handling hazard warnings")
-    disclaimer: str = Field(
-        ...,
-        description="Scientific decision-support disclaimer for empirical validation",
-    )
+    requirements: PackagingRequirements
+    primary_recommendation: RecommendationItem
+    alternative_recommendations: List[RecommendationItem] = []
+    disclaimer: str
+
+    # Optional fields for extended context and backward compatibility
+    commodity_summary: Optional[Dict[str, Any]] = None
+    otr_requirement_category: Optional[str] = None
+    wvtr_requirement_category: Optional[str] = None
+    suggested_thickness_range_microns: Optional[ThicknessRange] = None
+    sealability_requirement: Optional[str] = None
+    mechanical_strength_requirement: Optional[str] = None
+    map_suitability: Optional[str] = None
+    breathable_or_microperforated_recommendation: Optional[str] = None
+    storage_recommendation: Optional[str] = None
+    cost_class: Optional[str] = None
+    sustainability_score: Optional[float] = None
+    recommended_packaging_structure: Optional[str] = None
+    disqualified_materials: Optional[List[DisqualifiedMaterial]] = []
+    explanatory_reasons: Optional[List[str]] = []
+    warnings: Optional[List[str]] = []
     session_id: Optional[str] = None
     created_at: Optional[datetime] = None
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, extra="allow")
