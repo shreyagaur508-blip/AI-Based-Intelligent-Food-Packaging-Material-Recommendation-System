@@ -29,9 +29,10 @@ import {
   PACKAGING_FORMATS,
   PRESET_COMMODITIES
 } from '../data/mockData';
+import { generateRecommendation } from '../api/recommendationApi';
 
 const INITIAL_FORM_STATE = {
-  commodityName: '',
+  commodityName: 'Banana',
   category: 'Fresh Produce',
   moisture: '74',
   oilFatLevel: 'none',
@@ -51,6 +52,7 @@ export default function RecommendPage() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState(INITIAL_FORM_STATE);
   const [errors, setErrors] = useState({});
+  const [apiError, setApiError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedPresetId, setSelectedPresetId] = useState('banana');
   const [statusMessage, setStatusMessage] = useState('Loaded preset: Banana (Climacteric fresh produce)');
@@ -61,6 +63,9 @@ export default function RecommendPage() {
     // Clear error for this field as user types
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: null }));
+    }
+    if (apiError) {
+      setApiError(null);
     }
   };
 
@@ -92,6 +97,7 @@ export default function RecommendPage() {
       packagingFormat: preset.packagingFormat,
     });
     setErrors({});
+    setApiError(null);
     setStatusMessage(`Loaded preset: ${preset.name} (${preset.note})`);
   };
 
@@ -143,8 +149,10 @@ export default function RecommendPage() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setApiError(null);
+
     if (!validateForm()) {
       // Scroll to the first error
       window.scrollTo({ top: 150, behavior: 'smooth' });
@@ -153,22 +161,37 @@ export default function RecommendPage() {
 
     setIsSubmitting(true);
 
-    // Save data locally to sessionStorage and route state
     try {
-      sessionStorage.setItem('packwise_recommendation_input', JSON.stringify(formData));
-    } catch (err) {
-      console.warn('Could not write to sessionStorage', err);
-    }
+      // Call live FastAPI recommendation engine
+      const recommendationResponse = await generateRecommendation(formData);
 
-    setTimeout(() => {
+      // Save data locally to sessionStorage and navigate
+      try {
+        sessionStorage.setItem('packwise_recommendation_input', JSON.stringify(formData));
+        sessionStorage.setItem('packwise_recommendation_result', JSON.stringify(recommendationResponse));
+      } catch (err) {
+        console.warn('Could not write to sessionStorage', err);
+      }
+
+      navigate('/results', {
+        state: {
+          recommendation: recommendationResponse,
+          formData,
+        },
+      });
+    } catch (err) {
+      console.error('Recommendation API error:', err);
+      setApiError(err.message || 'Failed to connect to recommendation backend. Please verify server status.');
+      window.scrollTo({ top: 150, behavior: 'smooth' });
+    } finally {
       setIsSubmitting(false);
-      navigate('/results', { state: { formData } });
-    }, 450);
+    }
   };
 
   const resetForm = () => {
     setFormData(INITIAL_FORM_STATE);
     setErrors({});
+    setApiError(null);
     setSelectedPresetId('');
     setStatusMessage('Form reset to default.');
   };
@@ -224,6 +247,28 @@ export default function RecommendPage() {
           </div>
         )}
       </Card>
+
+      {/* API / Network Error Alert */}
+      {apiError && (
+        <div className="p-5 rounded-2xl bg-rose-950/40 border border-rose-500/40 shadow-lg shadow-rose-950/50 flex items-start gap-4">
+          <div className="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0 mt-0.5">
+            <AlertCircle className="w-5 h-5" />
+          </div>
+          <div className="space-y-1.5 flex-1">
+            <h4 className="text-sm font-bold text-rose-300">
+              Recommendation Engine Request Failed
+            </h4>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              {apiError}
+            </p>
+            <div className="pt-1">
+              <span className="text-[11px] text-rose-300/80">
+                Tip: Verify the FastAPI server is running with <code className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-brand-400">uvicorn app.main:app --reload</code> on port 8000.
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Input Form */}
       <form onSubmit={handleSubmit} noValidate className="space-y-8">
