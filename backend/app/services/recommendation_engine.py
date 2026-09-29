@@ -27,6 +27,7 @@ from app.schemas.recommendation import (
     ThicknessRange,
     MaterialScoreBreakdown,
     DisqualifiedMaterial,
+    PlainLanguageSummary,
 )
 
 DISCLAIMER_TEXT = (
@@ -48,6 +49,57 @@ def cost_level_to_class(cost_level: str) -> str:
     return "medium"
 
 
+# Qualitative category mapping dictionaries for Simple Mode
+MOISTURE_CATEGORY_MAP: Dict[str, float] = {
+    "low": 2.0,           # Dry crisp foods (chips, biscuits, crackers)
+    "dry": 2.0,
+    "medium": 14.0,       # Grains, flour, powders, semi-dry
+    "semi_dry": 14.0,
+    "high": 65.0,         # High moisture / dairy (paneer, cheese)
+    "semi_moist": 65.0,
+    "very_high": 92.0,    # Fresh fruits & vegetables
+    "fresh": 92.0,
+}
+
+PH_CATEGORY_MAP: Dict[str, float] = {
+    "acidic": 4.2,        # Tomato, citrus, fruit pickles (high acid)
+    "high_acid": 4.2,
+    "low_acid": 5.5,      # Vegetables, mild foods
+    "neutral": 6.8,       # Milk, paneer, grains, pulses
+    "alkaline": 8.0,      # Alkaline processed foods
+}
+
+OIL_FAT_CATEGORY_MAP: Dict[str, str] = {
+    "none": "low",        # Fresh produce (<1%)
+    "low": "low",         # Grains, pulses (1-5%)
+    "medium": "medium",   # Baked goods, semi-fat (5-20%)
+    "moderate": "medium",
+    "high": "high",       # Fried chips, nuts (>20%)
+    "very_high": "high",
+}
+
+RESPIRATION_CATEGORY_MAP: Dict[str, str] = {
+    "none": "very_low",   # Non-respiring / processed
+    "zero": "very_low",
+    "low": "low",         # Onions, potatoes
+    "medium": "medium",   # Tomato, mango
+    "moderate": "medium",
+    "high": "high",       # Banana, berries
+    "very_high": "very_high", # Spinach, mushrooms
+}
+
+SHELF_LIFE_CATEGORY_MAP: Dict[str, int] = {
+    "short": 7,           # Short (≤7 days)
+    "<=7 days": 7,
+    "≤7 days": 7,
+    "medium": 21,         # Medium (8–30 days)
+    "8-30 days": 21,
+    "8–30 days": 21,
+    "long": 90,           # Long (>30 days)
+    ">30 days": 90,
+}
+
+
 class RecommendationEngine:
     """Deterministic, explainable food packaging recommendation engine."""
 
@@ -57,55 +109,125 @@ class RecommendationEngine:
         db: Session,
         request: RecommendationRequest,
     ) -> Tuple[Dict[str, Any], Optional[Commodity]]:
-        """Resolve food inputs and blend with database commodity reference data if available."""
+        """Resolve food inputs and blend with database commodity reference data if available.
+
+        -------------------------------------------------------------------------
+        SIMPLE vs ADVANCED MODE FLOW:
+        1. SIMPLE MODE (Recommended for farmers, small business owners):
+           - User specifies commodity name, storage mode, and simple categories.
+           - When `use_defaults=True`, database reference defaults fill missing
+             physicochemical metrics (moisture, pH, lipid level, respiration rate).
+           - When qualitative category strings are passed (e.g. moisture_category,
+             ph_category), they are mapped to standard numeric ranges.
+
+        2. ADVANCED MODE (For packaging engineers, QA labs):
+           - User supplies precise laboratory metrics (numeric moisture %, pH,
+             exact storage temperature, RH %, desired shelf life days).
+           - When `use_defaults=False`, user-supplied parameters are strictly honored
+             without commodity default overrides.
+        -------------------------------------------------------------------------
+        """
         commodity: Optional[Commodity] = None
 
+        # 1. Lookup known commodity in database if ID or name is provided
         if request.commodity_id:
             commodity = db.scalar(select(Commodity).where(Commodity.id == request.commodity_id))
         elif request.commodity_name:
+            clean_name = request.commodity_name.strip()
+            # Try exact case-insensitive match first
             commodity = db.scalar(
-                select(Commodity).where(Commodity.name.ilike(f"%{request.commodity_name.strip()}%"))
+                select(Commodity).where(Commodity.name.ilike(clean_name))
             )
+            # Try substring match if exact match not found
+            if not commodity:
+                commodity = db.scalar(
+                    select(Commodity).where(Commodity.name.ilike(f"%{clean_name}%"))
+                )
+            # Try reverse substring match for plural / descriptive terms
+            if not commodity:
+                all_commodities = db.scalars(select(Commodity)).all()
+                for comm in all_commodities:
+                    if comm.name.lower() in clean_name.lower() or clean_name.lower() in comm.name.lower():
+                        commodity = comm
+                        break
 
         name = request.commodity_name or (commodity.name if commodity else "Custom Food Product")
         category = request.commodity_category or (commodity.category if commodity else "Other / Custom")
-        moisture = (
-            request.moisture_percent
-            if request.moisture_percent is not None
-            else (commodity.default_moisture_percent if commodity else 15.0)
-        )
-        oil_fat = (
-            request.oil_fat_level
-            or (commodity.oil_fat_level if commodity else "low")
-        ).lower()
-        if oil_fat == "none":
+
+        # 2. Resolve Moisture Content (Numeric -> Qualitative Category -> DB Default -> Safe Fallback)
+        if request.moisture_percent is not None:
+            moisture = float(request.moisture_percent)
+        elif request.moisture_category and request.moisture_category.lower() in MOISTURE_CATEGORY_MAP:
+            moisture = MOISTURE_CATEGORY_MAP[request.moisture_category.lower()]
+        elif request.use_defaults and commodity and commodity.default_moisture_percent is not None:
+            moisture = float(commodity.default_moisture_percent)
+        else:
+            moisture = 15.0
+
+        # 3. Resolve Oil / Fat Level
+        if request.oil_fat_level:
+            raw_oil = request.oil_fat_level.strip().lower()
+            oil_fat = OIL_FAT_CATEGORY_MAP.get(raw_oil, raw_oil)
+        elif request.oil_fat_category and request.oil_fat_category.lower() in OIL_FAT_CATEGORY_MAP:
+            oil_fat = OIL_FAT_CATEGORY_MAP[request.oil_fat_category.lower()]
+        elif request.use_defaults and commodity and commodity.oil_fat_level:
+            raw_oil = commodity.oil_fat_level.strip().lower()
+            oil_fat = OIL_FAT_CATEGORY_MAP.get(raw_oil, raw_oil)
+        else:
             oil_fat = "low"
-        elif oil_fat == "moderate":
-            oil_fat = "medium"
 
-        ph = request.ph_value if request.ph_value is not None else (commodity.default_ph if commodity else 6.0)
-        respiration = (
-            request.respiration_rate
-            or (commodity.respiration_class if commodity else "very_low")
-        ).lower()
-        if respiration in ("none", "zero"):
+        # 4. Resolve Product pH
+        if request.ph_value is not None:
+            ph = float(request.ph_value)
+        elif request.ph_category and request.ph_category.lower() in PH_CATEGORY_MAP:
+            ph = PH_CATEGORY_MAP[request.ph_category.lower()]
+        elif request.use_defaults and commodity and commodity.default_ph is not None:
+            ph = float(commodity.default_ph)
+        else:
+            ph = 6.0
+
+        # 5. Resolve Respiration Rate Class
+        if request.respiration_rate:
+            raw_resp = request.respiration_rate.strip().lower()
+            respiration = RESPIRATION_CATEGORY_MAP.get(raw_resp, raw_resp)
+        elif request.respiration_category and request.respiration_category.lower() in RESPIRATION_CATEGORY_MAP:
+            respiration = RESPIRATION_CATEGORY_MAP[request.respiration_category.lower()]
+        elif request.use_defaults and commodity and commodity.respiration_class:
+            raw_resp = commodity.respiration_class.strip().lower()
+            respiration = RESPIRATION_CATEGORY_MAP.get(raw_resp, raw_resp)
+        else:
             respiration = "very_low"
-        elif respiration == "moderate":
-            respiration = "medium"
 
-        shelf_life = (
-            request.desired_shelf_life_days
-            if request.desired_shelf_life_days is not None
-            else (commodity.base_shelf_life_days if commodity else 30)
-        )
-        storage_type = (
-            request.storage_type
-            or (commodity.recommended_storage_type if commodity else "ambient")
-        ).lower()
+        # 6. Resolve Storage Type
+        if request.storage_type:
+            storage_type = request.storage_type.strip().lower()
+        elif request.use_defaults and commodity and commodity.recommended_storage_type:
+            storage_type = commodity.recommended_storage_type.strip().lower()
+        else:
+            storage_type = "ambient"
 
+        # 7. Resolve Target Shelf Life Days
+        if request.desired_shelf_life_days is not None:
+            shelf_life = int(request.desired_shelf_life_days)
+        elif request.shelf_life_category:
+            cat_key = request.shelf_life_category.strip().lower()
+            if "short" in cat_key or "<=7" in cat_key or "≤7" in cat_key:
+                shelf_life = 7
+            elif "medium" in cat_key or "8-30" in cat_key or "8–30" in cat_key:
+                shelf_life = 21
+            elif "long" in cat_key or ">30" in cat_key:
+                shelf_life = commodity.base_shelf_life_days if (commodity and commodity.base_shelf_life_days) else 90
+            else:
+                shelf_life = SHELF_LIFE_CATEGORY_MAP.get(cat_key, 30)
+        elif request.use_defaults and commodity and commodity.base_shelf_life_days is not None:
+            shelf_life = int(commodity.base_shelf_life_days)
+        else:
+            shelf_life = 30
+
+        # 8. Resolve Storage Temperature
         if request.storage_temperature is not None:
-            storage_temp = request.storage_temperature
-        elif commodity:
+            storage_temp = float(request.storage_temperature)
+        elif commodity and (not request.storage_type or request.storage_type.lower() == commodity.recommended_storage_type.lower()):
             storage_temp = (commodity.minimum_storage_temperature + commodity.maximum_storage_temperature) / 2.0
         elif storage_type == "frozen":
             storage_temp = -18.0
@@ -114,18 +236,38 @@ class RecommendationEngine:
         else:
             storage_temp = 22.0
 
-        rh = (
-            request.relative_humidity
-            if request.relative_humidity is not None
-            else (90.0 if storage_type in ("chilled", "frozen") else 55.0)
-        )
-        transit_cond = (request.transportation_condition or "local").lower()
-        transit_days = (
-            request.transport_days
-            if request.transport_days is not None
-            else 2
-        )
-        sust_pref = (request.sustainability_preference or "medium").lower()
+        # 9. Resolve Relative Humidity
+        if request.relative_humidity is not None:
+            rh = float(request.relative_humidity)
+        else:
+            rh = 90.0 if storage_type in ("chilled", "frozen") else 55.0
+
+        # 10. Resolve Transportation Conditions
+        if request.transportation_condition:
+            transit_cond = request.transportation_condition.strip().lower()
+        elif request.transport_category:
+            t_cat = request.transport_category.strip().lower()
+            transit_cond = "long_distance" if ("long" in t_cat or "distance" in t_cat) else "local"
+        else:
+            transit_cond = "local"
+
+        if request.transport_days is not None:
+            transit_days = int(request.transport_days)
+        elif request.transport_category:
+            t_cat = request.transport_category.strip().lower()
+            transit_days = 7 if ("long" in t_cat or "distance" in t_cat) else 2
+        else:
+            transit_days = 2
+
+        # 11. Sustainability & Packaging Format Preferences
+        raw_sust = (request.sustainability_preference or "medium").strip().lower()
+        if raw_sust in ("low", "budget", "cost"):
+            sust_pref = "low"
+        elif raw_sust in ("high", "recyclable", "compostable", "eco"):
+            sust_pref = "high"
+        else:
+            sust_pref = "medium"
+
         pkg_format = request.packaging_format_preference or "pouch"
 
         food_context = {
@@ -171,7 +313,7 @@ class RecommendationEngine:
 
         # 1. Moisture Risk (Rule 1 & Rule 10)
         # High for high moisture foods (wilting/syneresis) OR very dry foods (hygroscopic caking/loss of crispness)
-        if moisture >= 60.0 or category in ("fresh produce", "perishable dairy") or (moisture < 5.0 and category in ("dry crisp foods", "powders & grains", "high-fat snacks")):
+        if moisture >= 60.0 or moisture <= 4.0 or category in ("fresh produce", "perishable dairy", "dry crisp foods", "powders & grains", "high-fat snacks"):
             moisture_risk = "high"
         elif moisture >= 15.0:
             moisture_risk = "medium"
@@ -745,6 +887,43 @@ class RecommendationEngine:
         elif "tomato" in food_context["commodity_name"].lower() and food_context["storage_temperature"] < 10.0:
             warnings.append("CHILLING INJURY WARNING: Storing tomatoes below 10°C impairs aroma synthesis and softens tissue.")
 
+        # Plain language summary for farmers and non-technical users
+        must_do_points = []
+        if requirements.breathable_film_needed:
+            must_do_points.append("Allow fresh produce to breathe naturally (controlled oxygen and CO2 exchange) while preventing sweat/condensation buildup to stop decay and mold.")
+        else:
+            if risk_profile.oxidation_risk == "high" and risk_profile.moisture_risk == "high":
+                must_do_points.append("Block outside air (oxygen) and humidity completely to preserve crispness and prevent oils/fats from going rancid.")
+            elif risk_profile.moisture_risk == "high":
+                must_do_points.append("Provide a strong moisture barrier to prevent humidity uptake, sogginess, and powder caking.")
+            elif risk_profile.oxidation_risk == "high":
+                must_do_points.append("Provide a tight oxygen barrier and light protection to stop flavor loss and fat rancidity.")
+            elif food_context["storage_type"] == "frozen":
+                must_do_points.append("Seal against ice sublimation (freezer burn) and resist cracking at sub-zero temperatures.")
+            else:
+                must_do_points.append("Provide hygienic containment, moderate barrier protection, and distribution strength.")
+
+        plain_must_do = " ".join(must_do_points)
+
+        # Suggested packaging structure in simple, farmer-friendly terms
+        if requirements.breathable_film_needed:
+            simple_struct = f"Laser Micro-Perforated or Breathable Film Pouch ({primary_mat.name})"
+        elif food_context["storage_type"] == "frozen":
+            simple_struct = f"Sub-Zero Freeze-Tough Flexible Pouch ({primary_mat.name})"
+        elif "metallized" in primary_mat.structure.lower() or "met-pet" in primary_mat.name.lower() or "alu" in primary_mat.name.lower() or "foil" in primary_mat.name.lower():
+            simple_struct = f"High-Barrier Foil or Metallized Pouch with Nitrogen Flush ({primary_mat.name})"
+        else:
+            simple_struct = f"{primary_mat.name} ({primary_mat.structure})"
+
+        plain_storage = f"Store in {food_context['storage_type']} conditions at ~{food_context['storage_temperature']}°C with {food_context['relative_humidity']}% relative humidity."
+
+        plain_summary = PlainLanguageSummary(
+            must_do=plain_must_do,
+            suggested_structure=simple_struct,
+            storage_guidance=plain_storage,
+            key_takeaway=f"Optimal choice: {primary_mat.name} provides tailored barrier protection for {food_context['commodity_name']}."
+        )
+
         return RecommendationResponse(
             input_summary=input_summary,
             risk_profile=risk_profile,
@@ -752,6 +931,7 @@ class RecommendationEngine:
             primary_recommendation=primary_recommendation,
             alternative_recommendations=alternatives,
             disclaimer=DISCLAIMER_TEXT,
+            plain_language_summary=plain_summary,
             commodity_summary=commodity_summary,
             otr_requirement_category=requirements.required_otr_category,
             wvtr_requirement_category=requirements.required_wvtr_category,

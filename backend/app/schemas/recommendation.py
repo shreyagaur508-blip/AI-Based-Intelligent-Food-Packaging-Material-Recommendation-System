@@ -8,12 +8,27 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 class RecommendationRequest(BaseModel):
     """Input payload for generating a packaging recommendation."""
 
-    commodity_name: Optional[str] = Field(None, description="Name of the food commodity (e.g., 'Potato Chips', 'Banana')")
+    # Simple vs Advanced mode flags
+    use_defaults: bool = Field(True, description="Whether to auto-fill missing fields using database commodity defaults")
+    simple_mode: bool = Field(True, description="Whether request is generated in simple/guided mode")
+
+    # Core commodity identifiers
+    commodity_name: Optional[str] = Field(None, description="Name of the food commodity (e.g., 'Potato Chips', 'Tomato', 'Banana')")
     commodity_id: Optional[int] = Field(None, description="Database ID of known commodity to pre-populate defaults")
     commodity_category: Optional[str] = Field(
         None,
         description="Category: 'Fresh Produce', 'Dry Crisp Foods', 'High-Fat Snacks', 'Powders & Grains', 'Perishable Dairy', 'Frozen Foods', 'Other / Custom'",
     )
+
+    # Simplified qualitative category fields (for simple mode / farmers)
+    moisture_category: Optional[str] = Field(None, description="Qualitative moisture: 'low', 'medium', 'high', 'very_high'")
+    ph_category: Optional[str] = Field(None, description="Qualitative pH: 'acidic', 'low_acid', 'neutral', 'alkaline'")
+    oil_fat_category: Optional[str] = Field(None, description="Qualitative lipid level: 'none', 'low', 'medium', 'high', 'very_high'")
+    respiration_category: Optional[str] = Field(None, description="Qualitative respiration: 'none', 'low', 'medium', 'high', 'very_high'")
+    shelf_life_category: Optional[str] = Field(None, description="Qualitative shelf life tier: 'short' (<=7 days), 'medium' (8-30 days), 'long' (>30 days)")
+    transport_category: Optional[str] = Field(None, description="Transit scale: 'local', 'long_distance'")
+
+    # Detailed technical fields (for advanced mode / lab data)
     moisture_percent: Optional[float] = Field(None, ge=0.0, le=100.0, description="Product moisture content percentage")
     oil_fat_level: Optional[str] = Field(
         None,
@@ -154,13 +169,21 @@ class RecommendationItem(BaseModel):
 MaterialRecommendationItem = RecommendationItem
 
 
-
 class DisqualifiedMaterial(BaseModel):
     """Material eliminated during hard constraint gatekeeping."""
 
     material_id: int
     material_name: str
     reason: str
+
+
+class PlainLanguageSummary(BaseModel):
+    """Simple, non-technical explanation for farmers and small business operators."""
+
+    must_do: str = Field(..., description="What the packaging must achieve in plain language")
+    suggested_structure: str = Field(..., description="Suggested packaging format in plain words")
+    storage_guidance: Optional[str] = Field(None, description="Simple storage and temperature tip")
+    key_takeaway: Optional[str] = Field(None, description="Summary highlight")
 
 
 class RecommendationResponse(BaseModel):
@@ -174,6 +197,7 @@ class RecommendationResponse(BaseModel):
     disclaimer: str
 
     # Optional fields for extended context and backward compatibility
+    plain_language_summary: Optional[PlainLanguageSummary] = None
     commodity_summary: Optional[Dict[str, Any]] = None
     otr_requirement_category: Optional[str] = None
     wvtr_requirement_category: Optional[str] = None

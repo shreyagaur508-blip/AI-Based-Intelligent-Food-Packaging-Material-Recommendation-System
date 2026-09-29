@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Sparkles,
@@ -13,7 +13,11 @@ import {
   RotateCcw,
   Zap,
   CheckCircle,
-  HelpCircle
+  HelpCircle,
+  Sliders,
+  Check,
+  Search,
+  ChevronRight
 } from 'lucide-react';
 import Button from '../components/common/Button';
 import Card from '../components/common/Card';
@@ -29,38 +33,76 @@ import {
   PACKAGING_FORMATS,
   PRESET_COMMODITIES
 } from '../data/mockData';
-import { generateRecommendation } from '../api/recommendationApi';
+import { generateRecommendation, fetchCommodities } from '../api/recommendationApi';
+
+const SIMPLE_SHELF_LIFE_OPTIONS = [
+  { id: 'short', label: 'Short (≤7 days)', description: 'e.g., fresh greens, bakery items, daily harvest' },
+  { id: 'medium', label: 'Medium (8–30 days)', description: 'e.g., fresh tomatoes, bananas, chilled dairy' },
+  { id: 'long', label: 'Long (>30 days)', description: 'e.g., dry snacks, chips, grains, powders, frozen' },
+];
+
+const SIMPLE_TRANSPORT_OPTIONS = [
+  { id: 'local', label: 'Local Distribution', description: 'Short-haul within 1–2 days (farm-to-market / city retail)' },
+  { id: 'long_distance', label: 'Long Distance Logistics', description: 'Interstate / Cold chain / Export transit (3–7+ days)' },
+];
+
+const SIMPLE_SUSTAINABILITY_OPTIONS = [
+  { id: 'low', label: 'Low / Cost Economy', description: 'Budget-first standard packaging' },
+  { id: 'medium', label: 'Medium / Balanced', description: 'Standard recyclable or optimized material' },
+  { id: 'high', label: 'High / Eco-Friendly', description: 'Mono-material recyclable or compostable bio-films' },
+];
 
 const INITIAL_FORM_STATE = {
-  commodityName: 'Banana',
+  commodityName: 'Tomato',
   category: 'Fresh Produce',
-  moisture: '74',
+  moisture: '94.0',
   oilFatLevel: 'none',
-  pH: '5.0',
-  respirationRate: 'high',
-  shelfLifeDays: '14',
+  pH: '4.3',
+  respirationRate: 'moderate',
+  shelfLifeDays: '18',
   storageType: 'ambient',
-  storageTemp: '13.5',
-  relativeHumidity: '85',
-  transportCondition: 'Temperature-Controlled Cold Chain (Reefer)',
-  transportDays: '4',
-  sustainabilityPreference: 'compostable',
-  packagingFormat: 'Perforated Bag / Clamshell',
+  storageTemp: '12.0',
+  relativeHumidity: '90',
+  transportCondition: 'Ambient Standard (Truck / Rail)',
+  transportDays: '3',
+  sustainabilityPreference: 'medium',
+  packagingFormat: 'Pillow Pouch',
+  // Simple mode specific fields
+  shelfLifeCategory: 'medium',
+  transportCategory: 'local',
 };
 
 export default function RecommendPage() {
   const navigate = useNavigate();
+  const [isSimpleMode, setIsSimpleMode] = useState(true);
+  const [useTypicalValues, setUseTypicalValues] = useState(true);
   const [formData, setFormData] = useState(INITIAL_FORM_STATE);
   const [errors, setErrors] = useState({});
   const [apiError, setApiError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedPresetId, setSelectedPresetId] = useState('banana');
-  const [statusMessage, setStatusMessage] = useState('Loaded preset: Banana (Climacteric fresh produce)');
+  const [selectedPresetId, setSelectedPresetId] = useState('tomato');
+  const [statusMessage, setStatusMessage] = useState('Selected: Tomato (Chill-sensitive produce requiring breathable film)');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [dbCommodities, setDbCommodities] = useState(PRESET_COMMODITIES);
+
+  // Load database commodities on mount
+  useEffect(() => {
+    async function loadComms() {
+      const comms = await fetchCommodities();
+      if (comms && comms.length > 0) {
+        // Merge with preset descriptions
+        setDbCommodities(comms);
+      }
+    }
+    loadComms();
+  }, []);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    // Clear error for this field as user types
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value,
+    }));
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: null }));
     }
@@ -79,70 +121,71 @@ export default function RecommendPage() {
   };
 
   const loadPreset = (preset) => {
-    setSelectedPresetId(preset.id);
+    setSelectedPresetId(preset.id || preset.name.toLowerCase().replace(/\s+/g, '_'));
     setFormData({
       commodityName: preset.name,
-      category: preset.category,
-      moisture: preset.moisture.toString(),
-      oilFatLevel: preset.oilFatLevel,
-      pH: preset.pH.toString(),
-      respirationRate: preset.respirationRate,
-      shelfLifeDays: preset.shelfLifeDays.toString(),
-      storageType: preset.storageType,
-      storageTemp: preset.storageTemp.toString(),
-      relativeHumidity: preset.relativeHumidity.toString(),
-      transportCondition: preset.transportCondition,
-      transportDays: preset.transportDays.toString(),
-      sustainabilityPreference: preset.sustainabilityPreference,
-      packagingFormat: preset.packagingFormat,
+      category: preset.category || 'Other / Custom',
+      moisture: (preset.default_moisture_percent ?? preset.moisture ?? 15.0).toString(),
+      oilFatLevel: preset.oil_fat_level || preset.oilFatLevel || 'low',
+      pH: (preset.default_ph ?? preset.pH ?? 6.0).toString(),
+      respirationRate: preset.respiration_class || preset.respirationRate || 'very_low',
+      shelfLifeDays: (preset.base_shelf_life_days ?? preset.shelfLifeDays ?? 30).toString(),
+      storageType: preset.recommended_storage_type || preset.storageType || 'ambient',
+      storageTemp: (preset.minimum_storage_temperature !== undefined
+        ? ((preset.minimum_storage_temperature + preset.maximum_storage_temperature) / 2.0).toString()
+        : (preset.storageTemp ?? 20).toString()),
+      relativeHumidity: (preset.relativeHumidity ?? (preset.recommended_storage_type === 'chilled' || preset.storageType === 'chilled' ? 90 : 55)).toString(),
+      transportCondition: preset.transportCondition || 'Ambient Standard (Truck / Rail)',
+      transportDays: (preset.transportDays ?? 2).toString(),
+      sustainabilityPreference: preset.sustainabilityPreference || 'medium',
+      packagingFormat: preset.packagingFormat || 'Pillow Pouch',
+      shelfLifeCategory: (preset.base_shelf_life_days ?? preset.shelfLifeDays ?? 30) <= 7 ? 'short' : ((preset.base_shelf_life_days ?? preset.shelfLifeDays ?? 30) <= 30 ? 'medium' : 'long'),
+      transportCategory: 'local',
     });
     setErrors({});
     setApiError(null);
-    setStatusMessage(`Loaded preset: ${preset.name} (${preset.note})`);
+    setStatusMessage(`Loaded: ${preset.name} (${preset.notes || preset.note || preset.category})`);
   };
 
   const validateForm = () => {
     const newErrors = {};
 
-    // Commodity Name
+    // Commodity Name (required in both modes)
     if (!formData.commodityName.trim()) {
       newErrors.commodityName = 'Commodity name is required.';
     }
 
-    // Moisture (0 to 100)
-    const moistureNum = parseFloat(formData.moisture);
-    if (isNaN(moistureNum) || moistureNum < 0 || moistureNum > 100) {
-      newErrors.moisture = 'Moisture content must be a percentage between 0 and 100.';
-    }
+    // In Advanced Mode, validate all numeric scientific fields
+    if (!isSimpleMode) {
+      const moistureNum = parseFloat(formData.moisture);
+      if (isNaN(moistureNum) || moistureNum < 0 || moistureNum > 100) {
+        newErrors.moisture = 'Moisture content must be a percentage between 0 and 100.';
+      }
 
-    // pH (0 to 14)
-    const phNum = parseFloat(formData.pH);
-    if (isNaN(phNum) || phNum < 0 || phNum > 14) {
-      newErrors.pH = 'pH value must be between 0.0 and 14.0.';
-    }
+      const phNum = parseFloat(formData.pH);
+      if (isNaN(phNum) || phNum < 0 || phNum > 14) {
+        newErrors.pH = 'pH value must be between 0.0 and 14.0.';
+      }
 
-    // Relative Humidity (0 to 100)
-    const rhNum = parseFloat(formData.relativeHumidity);
-    if (isNaN(rhNum) || rhNum < 0 || rhNum > 100) {
-      newErrors.relativeHumidity = 'Relative humidity must be between 0% and 100%.';
-    }
+      const rhNum = parseFloat(formData.relativeHumidity);
+      if (isNaN(rhNum) || rhNum < 0 || rhNum > 100) {
+        newErrors.relativeHumidity = 'Relative humidity must be between 0% and 100%.';
+      }
 
-    // Shelf Life (> 0)
-    const shelfLifeNum = parseInt(formData.shelfLifeDays, 10);
-    if (isNaN(shelfLifeNum) || shelfLifeNum <= 0) {
-      newErrors.shelfLifeDays = 'Target shelf life must be a positive number greater than 0.';
-    }
+      const shelfLifeNum = parseInt(formData.shelfLifeDays, 10);
+      if (isNaN(shelfLifeNum) || shelfLifeNum <= 0) {
+        newErrors.shelfLifeDays = 'Target shelf life must be a positive number greater than 0.';
+      }
 
-    // Storage Temperature (numeric)
-    const tempNum = parseFloat(formData.storageTemp);
-    if (isNaN(tempNum)) {
-      newErrors.storageTemp = 'Storage temperature must be a valid numeric value.';
-    }
+      const tempNum = parseFloat(formData.storageTemp);
+      if (isNaN(tempNum)) {
+        newErrors.storageTemp = 'Storage temperature must be a valid numeric value.';
+      }
 
-    // Transportation Duration (>= 0)
-    const transportNum = parseInt(formData.transportDays, 10);
-    if (isNaN(transportNum) || transportNum < 0) {
-      newErrors.transportDays = 'Transportation days must be 0 or higher.';
+      const transportNum = parseInt(formData.transportDays, 10);
+      if (isNaN(transportNum) || transportNum < 0) {
+        newErrors.transportDays = 'Transportation days must be 0 or higher.';
+      }
     }
 
     setErrors(newErrors);
@@ -154,7 +197,6 @@ export default function RecommendPage() {
     setApiError(null);
 
     if (!validateForm()) {
-      // Scroll to the first error
       window.scrollTo({ top: 150, behavior: 'smooth' });
       return;
     }
@@ -162,12 +204,19 @@ export default function RecommendPage() {
     setIsSubmitting(true);
 
     try {
-      // Call live FastAPI recommendation engine
-      const recommendationResponse = await generateRecommendation(formData);
+      const submitPayload = {
+        ...formData,
+        isSimpleMode,
+        simple_mode: isSimpleMode,
+        use_defaults: isSimpleMode ? useTypicalValues : false,
+      };
 
-      // Save data locally to sessionStorage and navigate
+      // Call live FastAPI recommendation engine
+      const recommendationResponse = await generateRecommendation(submitPayload);
+
+      // Save locally to sessionStorage and navigate
       try {
-        sessionStorage.setItem('packwise_recommendation_input', JSON.stringify(formData));
+        sessionStorage.setItem('packwise_recommendation_input', JSON.stringify(submitPayload));
         sessionStorage.setItem('packwise_recommendation_result', JSON.stringify(recommendationResponse));
       } catch (err) {
         console.warn('Could not write to sessionStorage', err);
@@ -176,7 +225,7 @@ export default function RecommendPage() {
       navigate('/results', {
         state: {
           recommendation: recommendationResponse,
-          formData,
+          formData: submitPayload,
         },
       });
     } catch (err) {
@@ -192,24 +241,111 @@ export default function RecommendPage() {
     setFormData(INITIAL_FORM_STATE);
     setErrors({});
     setApiError(null);
-    setSelectedPresetId('');
+    setSelectedPresetId('tomato');
     setStatusMessage('Form reset to default.');
   };
 
+  // Filtered commodities for search dropdown
+  const filteredCommodities = dbCommodities.filter((c) =>
+    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (c.category && c.category.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
       {/* Page Header */}
       <div className="space-y-3">
         <div className="flex items-center gap-2">
-          <Badge variant="brand" size="md">Phase 1 Data Capture</Badge>
+          <Badge variant="brand" size="md">Phase 5 Intelligent Packaging</Badge>
           <span className="text-xs text-slate-400">Step 1 of Decision Pipeline</span>
         </div>
-        <h1 className="text-3xl sm:text-4xl font-extrabold text-white">
+        <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
           Food Packaging Recommendation Form
         </h1>
         <p className="text-slate-300 text-sm sm:text-base max-w-3xl">
-          Enter intrinsic food chemistry, physiology, and distribution parameters. The PackWise AI rule engine evaluates barrier criteria (OTR/WVTR), respiration kinetics, and environmental targets.
+          Get scientifically calibrated packaging material and barrier recommendations (OTR/WVTR, breathable film, MAP) tailored to your food product.
         </p>
+      </div>
+
+      {/* Mode Switcher Toggle: Simple Mode vs Advanced Mode */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Simple Mode Toggle Card */}
+        <button
+          type="button"
+          onClick={() => setIsSimpleMode(true)}
+          className={`p-5 rounded-2xl border text-left transition-all relative ${
+            isSimpleMode
+              ? 'bg-gradient-to-br from-emerald-950/70 to-slate-900 border-emerald-500/60 ring-2 ring-emerald-500/40 shadow-lg shadow-emerald-950/50'
+              : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div
+                className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold ${
+                  isSimpleMode
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                    : 'bg-slate-800 text-slate-400'
+                }`}
+              >
+                <Leaf className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className={`text-base font-bold ${isSimpleMode ? 'text-white' : 'text-slate-200'}`}>
+                    Simple mode
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    Recommended for farmers / small units
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  Simple mode – uses typical values for your product.
+                </p>
+              </div>
+            </div>
+            {isSimpleMode && <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-1" />}
+          </div>
+        </button>
+
+        {/* Advanced Mode Toggle Card */}
+        <button
+          type="button"
+          onClick={() => setIsSimpleMode(false)}
+          className={`p-5 rounded-2xl border text-left transition-all relative ${
+            !isSimpleMode
+              ? 'bg-gradient-to-br from-indigo-950/70 to-slate-900 border-indigo-500/60 ring-2 ring-indigo-500/40 shadow-lg shadow-indigo-950/50'
+              : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div
+                className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold ${
+                  !isSimpleMode
+                    ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/40'
+                    : 'bg-slate-800 text-slate-400'
+                }`}
+              >
+                <Sliders className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className={`text-base font-bold ${!isSimpleMode ? 'text-white' : 'text-slate-200'}`}>
+                    Advanced mode
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                    Lab Data & QA
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  Advanced mode – use if you have lab data or specific requirements.
+                </p>
+              </div>
+            </div>
+            {!isSimpleMode && <CheckCircle className="w-5 h-5 text-indigo-400 shrink-0 mt-1" />}
+          </div>
+        </button>
       </div>
 
       {/* Preset Commodity Quick Selectors */}
@@ -219,7 +355,7 @@ export default function RecommendPage() {
             <Zap className="w-4 h-4 text-brand-400" />
             <span>Quick-Load Preset Commodity Profile</span>
           </div>
-          <span className="text-xs text-slate-400">Click a preset to populate scientific values automatically:</span>
+          <span className="text-xs text-slate-400">Click a preset to populate commodity details automatically:</span>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -261,414 +397,650 @@ export default function RecommendPage() {
             <p className="text-xs text-slate-300 leading-relaxed">
               {apiError}
             </p>
-            <div className="pt-1">
-              <span className="text-[11px] text-rose-300/80">
-                Tip: Verify the FastAPI server is running with <code className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-brand-400">uvicorn app.main:app --reload</code> on port 8000.
-              </span>
-            </div>
           </div>
         </div>
       )}
 
       {/* Main Input Form */}
       <form onSubmit={handleSubmit} noValidate className="space-y-8">
-        {/* Section 1: Food Chemistry & Physicochemical Properties */}
-        <Card className="p-6 sm:p-8 space-y-6">
-          <div className="flex items-center gap-3 pb-4 border-b border-slate-800">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold text-xs">
-              01
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-white">Food Commodity Characteristics</h2>
-              <p className="text-xs text-slate-400">Specify chemical composition and degradation susceptibility.</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* Commodity Name */}
-            <div className="space-y-1.5">
-              <label htmlFor="commodityName" className="block text-xs font-semibold text-slate-200">
-                Commodity Name <span className="text-rose-400">*</span>
-              </label>
-              <input
-                id="commodityName"
-                name="commodityName"
-                type="text"
-                value={formData.commodityName}
-                onChange={handleChange}
-                placeholder="e.g., Banana, Potato chips, Paneer"
-                className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 transition-all ${
-                  errors.commodityName
-                    ? 'border-rose-500 focus:ring-rose-500/30'
-                    : 'border-slate-800 focus:border-brand-500 focus:ring-brand-500/20'
-                }`}
-                aria-invalid={errors.commodityName ? 'true' : 'false'}
-                aria-describedby={errors.commodityName ? 'commodityName-error' : undefined}
-              />
-              {errors.commodityName && (
-                <p id="commodityName-error" className="text-xs text-rose-400 flex items-center gap-1 mt-1">
-                  <AlertCircle className="w-3 h-3 shrink-0" />
-                  {errors.commodityName}
-                </p>
-              )}
-            </div>
-
-            {/* Category */}
-            <div className="space-y-1.5">
-              <label htmlFor="category" className="block text-xs font-semibold text-slate-200">
-                Food Category <span className="text-rose-400">*</span>
-              </label>
-              <select
-                id="category"
-                name="category"
-                value={formData.category}
-                onChange={handleChange}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
-              >
-                {COMMODITY_CATEGORIES.map((cat) => (
-                  <option key={cat} value={cat} className="bg-slate-900 text-white">
-                    {cat}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Moisture Content % */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label htmlFor="moisture" className="block text-xs font-semibold text-slate-200">
-                  Moisture Content (%) <span className="text-rose-400">*</span>
-                </label>
-                <span className="text-[11px] text-slate-400">0 – 100%</span>
+        {/* ====================================================================== */}
+        {/* SIMPLE MODE FORM (For Farmers / Small Units / Non-Technical Users)       */}
+        {/* ====================================================================== */}
+        {isSimpleMode ? (
+          <div className="space-y-6">
+            {/* Commodity Selection & Typical Values Option */}
+            <Card className="p-6 sm:p-8 space-y-6 border-emerald-500/30">
+              <div className="flex items-center gap-3 pb-4 border-b border-slate-800">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold text-xs">
+                  01
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-white">Select Your Product</h2>
+                  <p className="text-xs text-slate-400">Choose or enter your food commodity.</p>
+                </div>
               </div>
-              <input
-                id="moisture"
-                name="moisture"
-                type="number"
-                step="0.1"
-                min="0"
-                max="100"
-                value={formData.moisture}
-                onChange={handleChange}
-                className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 transition-all ${
-                  errors.moisture
-                    ? 'border-rose-500 focus:ring-rose-500/30'
-                    : 'border-slate-800 focus:border-brand-500 focus:ring-brand-500/20'
-                }`}
-                aria-invalid={errors.moisture ? 'true' : 'false'}
-                aria-describedby={errors.moisture ? 'moisture-error' : undefined}
-              />
-              {errors.moisture && (
-                <p id="moisture-error" className="text-xs text-rose-400 flex items-center gap-1 mt-1">
-                  <AlertCircle className="w-3 h-3 shrink-0" />
-                  {errors.moisture}
-                </p>
-              )}
-            </div>
 
-            {/* Oil / Fat Level */}
-            <div className="space-y-1.5">
-              <label htmlFor="oilFatLevel" className="block text-xs font-semibold text-slate-200">
-                Oil & Fat Level (Oxidation Risk)
-              </label>
-              <select
-                id="oilFatLevel"
-                name="oilFatLevel"
-                value={formData.oilFatLevel}
-                onChange={handleChange}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
-              >
-                {OIL_FAT_LEVELS.map((opt) => (
-                  <option key={opt.value} value={opt.value} className="bg-slate-900 text-white">
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+              <div className="space-y-5">
+                {/* Commodity Dropdown / Search */}
+                <div className="space-y-2">
+                  <label htmlFor="simpleCommodity" className="block text-xs font-semibold text-slate-200">
+                    Commodity <span className="text-rose-400">*</span>
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <select
+                      id="simpleCommodity"
+                      value={formData.commodityName}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const match = dbCommodities.find(
+                          (c) => c.name.toLowerCase() === val.toLowerCase()
+                        );
+                        if (match) {
+                          loadPreset(match);
+                        } else {
+                          setFormData((prev) => ({ ...prev, commodityName: val }));
+                        }
+                      }}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/80 border border-slate-700 text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+                    >
+                      <option value="">-- Choose known commodity --</option>
+                      {dbCommodities.map((c) => (
+                        <option key={c.id || c.name} value={c.name}>
+                          {c.name} ({c.category})
+                        </option>
+                      ))}
+                    </select>
 
-            {/* pH Value */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label htmlFor="pH" className="block text-xs font-semibold text-slate-200">
-                  pH Value <span className="text-rose-400">*</span>
-                </label>
-                <span className="text-[11px] text-slate-400">Scale: 0.0 – 14.0</span>
+                    <input
+                      type="text"
+                      name="commodityName"
+                      value={formData.commodityName}
+                      onChange={handleChange}
+                      placeholder="Or type custom product (e.g. Guava, Paneer, Chips)"
+                      className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950/80 border text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 transition-all ${
+                        errors.commodityName
+                          ? 'border-rose-500 focus:ring-rose-500/30'
+                          : 'border-slate-700 focus:border-brand-500 focus:ring-brand-500/20'
+                      }`}
+                    />
+                  </div>
+                  {errors.commodityName && (
+                    <p className="text-xs text-rose-400 flex items-center gap-1 mt-1">
+                      <AlertCircle className="w-3 h-3 shrink-0" />
+                      {errors.commodityName}
+                    </p>
+                  )}
+                </div>
+
+                {/* "Use typical values for this commodity" Checkbox */}
+                <div className="p-4 rounded-xl bg-emerald-950/30 border border-emerald-500/30 flex items-start gap-3">
+                  <input
+                    id="useTypicalValues"
+                    name="useTypicalValues"
+                    type="checkbox"
+                    checked={useTypicalValues}
+                    onChange={(e) => setUseTypicalValues(e.target.checked)}
+                    className="w-4 h-4 mt-0.5 rounded border-slate-700 text-emerald-500 focus:ring-emerald-500/30 bg-slate-900 cursor-pointer"
+                  />
+                  <div className="space-y-1 cursor-pointer" onClick={() => setUseTypicalValues(!useTypicalValues)}>
+                    <label htmlFor="useTypicalValues" className="text-xs font-bold text-emerald-300 block cursor-pointer">
+                      Use typical values for this commodity (recommended)
+                    </label>
+                    <p className="text-[11px] text-slate-300 leading-relaxed">
+                      PackWise AI automatically loads standard moisture %, respiration class, fat levels, and pH from our food science database. You don't need lab measurements.
+                    </p>
+                  </div>
+                </div>
               </div>
-              <input
-                id="pH"
-                name="pH"
-                type="number"
-                step="0.1"
-                min="0"
-                max="14"
-                value={formData.pH}
-                onChange={handleChange}
-                className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border text-sm text-white focus:outline-none focus:ring-2 transition-all ${
-                  errors.pH
-                    ? 'border-rose-500 focus:ring-rose-500/30'
-                    : 'border-slate-800 focus:border-brand-500 focus:ring-brand-500/20'
-                }`}
-                aria-invalid={errors.pH ? 'true' : 'false'}
-                aria-describedby={errors.pH ? 'pH-error' : undefined}
-              />
-              {errors.pH && (
-                <p id="pH-error" className="text-xs text-rose-400 flex items-center gap-1 mt-1">
-                  <AlertCircle className="w-3 h-3 shrink-0" />
-                  {errors.pH}
-                </p>
-              )}
-            </div>
+            </Card>
 
-            {/* Respiration Rate */}
-            <div className="space-y-1.5">
-              <label htmlFor="respirationRate" className="block text-xs font-semibold text-slate-200">
-                Respiration Rate (Fresh Produce)
-              </label>
-              <select
-                id="respirationRate"
-                name="respirationRate"
-                value={formData.respirationRate}
-                onChange={handleChange}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
-              >
-                {RESPIRATION_RATES.map((opt) => (
-                  <option key={opt.value} value={opt.value} className="bg-slate-900 text-white">
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </Card>
-
-        {/* Section 2: Storage & Environmental Distribution Parameters */}
-        <Card className="p-6 sm:p-8 space-y-6">
-          <div className="flex items-center gap-3 pb-4 border-b border-slate-800">
-            <div className="w-8 h-8 rounded-lg bg-teal-500/15 border border-teal-500/30 flex items-center justify-center text-teal-400 font-bold text-xs">
-              02
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-white">Storage & Shelf-Life Targets</h2>
-              <p className="text-xs text-slate-400">Define storage temperature regimes, humidity, and distribution chain.</p>
-            </div>
-          </div>
-
-          {/* Storage Type Quick Radio Tiles */}
-          <div className="space-y-2">
-            <label className="block text-xs font-semibold text-slate-200">Storage Regime</label>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {STORAGE_TYPES.map((st) => (
-                <button
-                  key={st.id}
-                  type="button"
-                  onClick={() => handleStorageTypeChange(st)}
-                  className={`p-3.5 rounded-xl border text-left transition-all ${
-                    formData.storageType === st.id
-                      ? 'bg-brand-500/15 border-brand-500 text-white ring-1 ring-brand-500'
-                      : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
-                  }`}
-                >
-                  <div className="font-semibold text-sm text-white">{st.label}</div>
-                  <div className="text-xs text-slate-400 mt-1">Default: {st.defaultTemp}°C, {st.defaultRH}% RH</div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
-            {/* Storage Temp */}
-            <div className="space-y-1.5">
-              <label htmlFor="storageTemp" className="block text-xs font-semibold text-slate-200">
-                Storage Temperature (°C) <span className="text-rose-400">*</span>
-              </label>
-              <input
-                id="storageTemp"
-                name="storageTemp"
-                type="number"
-                step="0.5"
-                value={formData.storageTemp}
-                onChange={handleChange}
-                className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border text-sm text-white focus:outline-none focus:ring-2 transition-all ${
-                  errors.storageTemp
-                    ? 'border-rose-500 focus:ring-rose-500/30'
-                    : 'border-slate-800 focus:border-brand-500 focus:ring-brand-500/20'
-                }`}
-                aria-invalid={errors.storageTemp ? 'true' : 'false'}
-                aria-describedby={errors.storageTemp ? 'storageTemp-error' : undefined}
-              />
-              {errors.storageTemp && (
-                <p id="storageTemp-error" className="text-xs text-rose-400 flex items-center gap-1 mt-1">
-                  <AlertCircle className="w-3 h-3 shrink-0" />
-                  {errors.storageTemp}
-                </p>
-              )}
-            </div>
-
-            {/* Relative Humidity % */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label htmlFor="relativeHumidity" className="block text-xs font-semibold text-slate-200">
-                  Relative Humidity (% RH) <span className="text-rose-400">*</span>
-                </label>
-                <span className="text-[11px] text-slate-400">0 – 100%</span>
+            {/* Storage Type */}
+            <Card className="p-6 sm:p-8 space-y-6">
+              <div className="flex items-center gap-3 pb-4 border-b border-slate-800">
+                <div className="w-8 h-8 rounded-lg bg-teal-500/15 border border-teal-500/30 flex items-center justify-center text-teal-400 font-bold text-xs">
+                  02
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-white">Storage & Handling Conditions</h2>
+                  <p className="text-xs text-slate-400">Choose storage regime and expected shelf life.</p>
+                </div>
               </div>
-              <input
-                id="relativeHumidity"
-                name="relativeHumidity"
-                type="number"
-                step="1"
-                min="0"
-                max="100"
-                value={formData.relativeHumidity}
-                onChange={handleChange}
-                className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border text-sm text-white focus:outline-none focus:ring-2 transition-all ${
-                  errors.relativeHumidity
-                    ? 'border-rose-500 focus:ring-rose-500/30'
-                    : 'border-slate-800 focus:border-brand-500 focus:ring-brand-500/20'
-                }`}
-                aria-invalid={errors.relativeHumidity ? 'true' : 'false'}
-                aria-describedby={errors.relativeHumidity ? 'relativeHumidity-error' : undefined}
-              />
-              {errors.relativeHumidity && (
-                <p id="relativeHumidity-error" className="text-xs text-rose-400 flex items-center gap-1 mt-1">
-                  <AlertCircle className="w-3 h-3 shrink-0" />
-                  {errors.relativeHumidity}
-                </p>
-              )}
-            </div>
 
-            {/* Desired Shelf Life */}
-            <div className="space-y-1.5">
-              <label htmlFor="shelfLifeDays" className="block text-xs font-semibold text-slate-200">
-                Target Shelf Life (Days) <span className="text-rose-400">*</span>
-              </label>
-              <input
-                id="shelfLifeDays"
-                name="shelfLifeDays"
-                type="number"
-                min="1"
-                value={formData.shelfLifeDays}
-                onChange={handleChange}
-                className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border text-sm text-white focus:outline-none focus:ring-2 transition-all ${
-                  errors.shelfLifeDays
-                    ? 'border-rose-500 focus:ring-rose-500/30'
-                    : 'border-slate-800 focus:border-brand-500 focus:ring-brand-500/20'
-                }`}
-                aria-invalid={errors.shelfLifeDays ? 'true' : 'false'}
-                aria-describedby={errors.shelfLifeDays ? 'shelfLifeDays-error' : undefined}
-              />
-              {errors.shelfLifeDays && (
-                <p id="shelfLifeDays-error" className="text-xs text-rose-400 flex items-center gap-1 mt-1">
-                  <AlertCircle className="w-3 h-3 shrink-0" />
-                  {errors.shelfLifeDays}
-                </p>
-              )}
-            </div>
+              <div className="space-y-6">
+                {/* Storage Type Radio Cards */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-slate-200">
+                    Storage Type <span className="text-rose-400">*</span>
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {[
+                      { id: 'ambient', label: 'Ambient', sub: 'Room temperature (~15–25°C)', icon: Thermometer },
+                      { id: 'chilled', label: 'Chilled', sub: 'Cold room / Refrigerator (0–4°C)', icon: Droplets },
+                      { id: 'frozen', label: 'Frozen', sub: 'Deep freezer (-18°C or below)', icon: Package },
+                    ].map((st) => (
+                      <button
+                        key={st.id}
+                        type="button"
+                        onClick={() => setFormData((prev) => ({ ...prev, storageType: st.id }))}
+                        className={`p-4 rounded-xl border text-left transition-all ${
+                          formData.storageType === st.id
+                            ? 'bg-brand-500/15 border-brand-500 text-white ring-2 ring-brand-500/40'
+                            : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+                        }`}
+                      >
+                        <div className="font-semibold text-sm text-white flex items-center justify-between">
+                          <span>{st.label}</span>
+                          {formData.storageType === st.id && <Check className="w-4 h-4 text-brand-400" />}
+                        </div>
+                        <div className="text-xs text-slate-400 mt-1">{st.sub}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-            {/* Transportation Condition */}
-            <div className="space-y-1.5">
-              <label htmlFor="transportCondition" className="block text-xs font-semibold text-slate-200">
-                Transportation Logistics Chain
-              </label>
-              <select
-                id="transportCondition"
-                name="transportCondition"
-                value={formData.transportCondition}
-                onChange={handleChange}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
-              >
-                {TRANSPORTATION_CONDITIONS.map((tc) => (
-                  <option key={tc} value={tc} className="bg-slate-900 text-white">
-                    {tc}
-                  </option>
-                ))}
-              </select>
-            </div>
+                {/* Desired Shelf Life Category */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-slate-200">
+                    Desired Shelf Life Category
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {SIMPLE_SHELF_LIFE_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setFormData((prev) => ({ ...prev, shelfLifeCategory: opt.id }))}
+                        className={`p-4 rounded-xl border text-left transition-all ${
+                          formData.shelfLifeCategory === opt.id
+                            ? 'bg-brand-500/15 border-brand-500 text-white ring-2 ring-brand-500/40'
+                            : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+                        }`}
+                      >
+                        <div className="font-semibold text-sm text-white flex items-center justify-between">
+                          <span>{opt.label}</span>
+                          {formData.shelfLifeCategory === opt.id && <Check className="w-4 h-4 text-brand-400" />}
+                        </div>
+                        <div className="text-xs text-slate-400 mt-1">{opt.description}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </Card>
 
-            {/* Transportation Days */}
-            <div className="space-y-1.5">
-              <label htmlFor="transportDays" className="block text-xs font-semibold text-slate-200">
-                Transit Duration (Days)
-              </label>
-              <input
-                id="transportDays"
-                name="transportDays"
-                type="number"
-                min="0"
-                value={formData.transportDays}
-                onChange={handleChange}
-                className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border text-sm text-white focus:outline-none focus:ring-2 transition-all ${
-                  errors.transportDays
-                    ? 'border-rose-500 focus:ring-rose-500/30'
-                    : 'border-slate-800 focus:border-brand-500 focus:ring-brand-500/20'
-                }`}
-                aria-invalid={errors.transportDays ? 'true' : 'false'}
-                aria-describedby={errors.transportDays ? 'transportDays-error' : undefined}
-              />
-              {errors.transportDays && (
-                <p id="transportDays-error" className="text-xs text-rose-400 flex items-center gap-1 mt-1">
-                  <AlertCircle className="w-3 h-3 shrink-0" />
-                  {errors.transportDays}
-                </p>
-              )}
-            </div>
+            {/* Distribution & Sustainability */}
+            <Card className="p-6 sm:p-8 space-y-6">
+              <div className="flex items-center gap-3 pb-4 border-b border-slate-800">
+                <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 font-bold text-xs">
+                  03
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-white">Transport & Sustainability</h2>
+                  <p className="text-xs text-slate-400">Transit scale and eco-packaging preference.</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                {/* Transport Distance */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-slate-200">
+                    Transport Distance
+                  </label>
+                  <div className="space-y-2">
+                    {SIMPLE_TRANSPORT_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setFormData((prev) => ({ ...prev, transportCategory: opt.id }))}
+                        className={`w-full p-3.5 rounded-xl border text-left transition-all flex items-start justify-between ${
+                          formData.transportCategory === opt.id
+                            ? 'bg-brand-500/15 border-brand-500 text-white ring-2 ring-brand-500/40'
+                            : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+                        }`}
+                      >
+                        <div>
+                          <div className="font-semibold text-sm text-white">{opt.label}</div>
+                          <div className="text-xs text-slate-400 mt-0.5">{opt.description}</div>
+                        </div>
+                        {formData.transportCategory === opt.id && <Check className="w-4 h-4 text-brand-400 mt-0.5 shrink-0" />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Sustainability Preference */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-slate-200">
+                    Sustainability Preference (Optional)
+                  </label>
+                  <div className="space-y-2">
+                    {SIMPLE_SUSTAINABILITY_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setFormData((prev) => ({ ...prev, sustainabilityPreference: opt.id }))}
+                        className={`w-full p-3.5 rounded-xl border text-left transition-all flex items-start justify-between ${
+                          formData.sustainabilityPreference === opt.id
+                            ? 'bg-brand-500/15 border-brand-500 text-white ring-2 ring-brand-500/40'
+                            : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+                        }`}
+                      >
+                        <div>
+                          <div className="font-semibold text-sm text-white">{opt.label}</div>
+                          <div className="text-xs text-slate-400 mt-0.5">{opt.description}</div>
+                        </div>
+                        {formData.sustainabilityPreference === opt.id && <Check className="w-4 h-4 text-brand-400 mt-0.5 shrink-0" />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </Card>
           </div>
-        </Card>
+        ) : (
+          /* ====================================================================== */
+          /* ADVANCED MODE FORM (For Packaging Engineers / QA Lab Data)             */
+          /* ====================================================================== */
+          <div className="space-y-8">
+            {/* Section 1: Food Chemistry & Physicochemical Properties */}
+            <Card className="p-6 sm:p-8 space-y-6">
+              <div className="flex items-center gap-3 pb-4 border-b border-slate-800">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold text-xs">
+                  01
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-white">Food Commodity Characteristics (Lab Data)</h2>
+                  <p className="text-xs text-slate-400">Specify precise chemical composition and physiological metrics.</p>
+                </div>
+              </div>
 
-        {/* Section 3: Engineering Preferences & Format */}
-        <Card className="p-6 sm:p-8 space-y-6">
-          <div className="flex items-center gap-3 pb-4 border-b border-slate-800">
-            <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 font-bold text-xs">
-              03
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-white">Packaging Form & Sustainability Priorities</h2>
-              <p className="text-xs text-slate-400">Configure multi-criteria optimization weights and packaging formats.</p>
-            </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {/* Commodity Name */}
+                <div className="space-y-1.5">
+                  <label htmlFor="commodityName" className="block text-xs font-semibold text-slate-200">
+                    Commodity Name <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    id="commodityName"
+                    name="commodityName"
+                    type="text"
+                    value={formData.commodityName}
+                    onChange={handleChange}
+                    placeholder="e.g., Banana, Potato chips, Paneer"
+                    className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 transition-all ${
+                      errors.commodityName
+                        ? 'border-rose-500 focus:ring-rose-500/30'
+                        : 'border-slate-800 focus:border-brand-500 focus:ring-brand-500/20'
+                    }`}
+                  />
+                  {errors.commodityName && (
+                    <p className="text-xs text-rose-400 flex items-center gap-1 mt-1">
+                      <AlertCircle className="w-3 h-3 shrink-0" />
+                      {errors.commodityName}
+                    </p>
+                  )}
+                </div>
+
+                {/* Category */}
+                <div className="space-y-1.5">
+                  <label htmlFor="category" className="block text-xs font-semibold text-slate-200">
+                    Food Category <span className="text-rose-400">*</span>
+                  </label>
+                  <select
+                    id="category"
+                    name="category"
+                    value={formData.category}
+                    onChange={handleChange}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
+                  >
+                    {COMMODITY_CATEGORIES.map((cat) => (
+                      <option key={cat} value={cat} className="bg-slate-900 text-white">
+                        {cat}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Moisture Content % */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="moisture" className="block text-xs font-semibold text-slate-200">
+                      Moisture Content (%) <span className="text-rose-400">*</span>
+                    </label>
+                    <span className="text-[11px] text-slate-400">0 – 100%</span>
+                  </div>
+                  <input
+                    id="moisture"
+                    name="moisture"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="100"
+                    value={formData.moisture}
+                    onChange={handleChange}
+                    className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border text-sm text-white focus:outline-none focus:ring-2 transition-all ${
+                      errors.moisture
+                        ? 'border-rose-500 focus:ring-rose-500/30'
+                        : 'border-slate-800 focus:border-brand-500 focus:ring-brand-500/20'
+                    }`}
+                  />
+                  <p className="text-[11px] text-slate-400">
+                    Example: fresh fruits/vegetables ~80–95%, chips ~1–3%, biscuits ~2–5%.
+                  </p>
+                  {errors.moisture && (
+                    <p className="text-xs text-rose-400 flex items-center gap-1 mt-1">
+                      <AlertCircle className="w-3 h-3 shrink-0" />
+                      {errors.moisture}
+                    </p>
+                  )}
+                </div>
+
+                {/* Oil / Fat Level */}
+                <div className="space-y-1.5">
+                  <label htmlFor="oilFatLevel" className="block text-xs font-semibold text-slate-200">
+                    Oil & Fat Level (Oxidation Risk)
+                  </label>
+                  <select
+                    id="oilFatLevel"
+                    name="oilFatLevel"
+                    value={formData.oilFatLevel}
+                    onChange={handleChange}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
+                  >
+                    {OIL_FAT_LEVELS.map((opt) => (
+                      <option key={opt.value} value={opt.value} className="bg-slate-900 text-white">
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-slate-400">
+                    Very low: most fruits/veg. High: chips, namkeen, roasted nuts.
+                  </p>
+                </div>
+
+                {/* pH Value */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="pH" className="block text-xs font-semibold text-slate-200">
+                      pH Value <span className="text-rose-400">*</span>
+                    </label>
+                    <span className="text-[11px] text-slate-400">0.0 – 14.0</span>
+                  </div>
+                  <input
+                    id="pH"
+                    name="pH"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="14"
+                    value={formData.pH}
+                    onChange={handleChange}
+                    className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border text-sm text-white focus:outline-none focus:ring-2 transition-all ${
+                      errors.pH
+                        ? 'border-rose-500 focus:ring-rose-500/30'
+                        : 'border-slate-800 focus:border-brand-500 focus:ring-brand-500/20'
+                    }`}
+                  />
+                  <p className="text-[11px] text-slate-400">
+                    Acidic: tomato, citrus. Neutral: milk, paneer.
+                  </p>
+                  {errors.pH && (
+                    <p className="text-xs text-rose-400 flex items-center gap-1 mt-1">
+                      <AlertCircle className="w-3 h-3 shrink-0" />
+                      {errors.pH}
+                    </p>
+                  )}
+                </div>
+
+                {/* Respiration Rate */}
+                <div className="space-y-1.5">
+                  <label htmlFor="respirationRate" className="block text-xs font-semibold text-slate-200">
+                    Respiration Rate (Produce Kinetics)
+                  </label>
+                  <select
+                    id="respirationRate"
+                    name="respirationRate"
+                    value={formData.respirationRate}
+                    onChange={handleChange}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
+                  >
+                    {RESPIRATION_RATES.map((opt) => (
+                      <option key={opt.value} value={opt.value} className="bg-slate-900 text-white">
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-slate-400">
+                    High/Very High: leafy veg, bananas. None: chips, biscuits, dry powders.
+                  </p>
+                </div>
+              </div>
+            </Card>
+
+            {/* Section 2: Storage & Environmental Distribution */}
+            <Card className="p-6 sm:p-8 space-y-6">
+              <div className="flex items-center gap-3 pb-4 border-b border-slate-800">
+                <div className="w-8 h-8 rounded-lg bg-teal-500/15 border border-teal-500/30 flex items-center justify-center text-teal-400 font-bold text-xs">
+                  02
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-white">Storage & Shelf-Life Targets</h2>
+                  <p className="text-xs text-slate-400">Define storage temperature regimes, humidity, and distribution chain.</p>
+                </div>
+              </div>
+
+              {/* Storage Type Quick Radio Tiles */}
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold text-slate-200">Storage Regime</label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {STORAGE_TYPES.map((st) => (
+                    <button
+                      key={st.id}
+                      type="button"
+                      onClick={() => handleStorageTypeChange(st)}
+                      className={`p-3.5 rounded-xl border text-left transition-all ${
+                        formData.storageType === st.id
+                          ? 'bg-brand-500/15 border-brand-500 text-white ring-1 ring-brand-500'
+                          : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="font-semibold text-sm text-white">{st.label}</div>
+                      <div className="text-xs text-slate-400 mt-1">Default: {st.defaultTemp}°C, {st.defaultRH}% RH</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
+                {/* Storage Temp */}
+                <div className="space-y-1.5">
+                  <label htmlFor="storageTemp" className="block text-xs font-semibold text-slate-200">
+                    Storage Temperature (°C) <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    id="storageTemp"
+                    name="storageTemp"
+                    type="number"
+                    step="0.5"
+                    value={formData.storageTemp}
+                    onChange={handleChange}
+                    className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border text-sm text-white focus:outline-none focus:ring-2 transition-all ${
+                      errors.storageTemp
+                        ? 'border-rose-500 focus:ring-rose-500/30'
+                        : 'border-slate-800 focus:border-brand-500 focus:ring-brand-500/20'
+                    }`}
+                  />
+                  <p className="text-[11px] text-slate-400">
+                    Optimal holding temp (Ambient ~20–25°C, Chilled ~2–4°C, Frozen ~-18°C).
+                  </p>
+                  {errors.storageTemp && (
+                    <p className="text-xs text-rose-400 flex items-center gap-1 mt-1">
+                      <AlertCircle className="w-3 h-3 shrink-0" />
+                      {errors.storageTemp}
+                    </p>
+                  )}
+                </div>
+
+                {/* Relative Humidity % */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="relativeHumidity" className="block text-xs font-semibold text-slate-200">
+                      Relative Humidity (% RH) <span className="text-rose-400">*</span>
+                    </label>
+                    <span className="text-[11px] text-slate-400">0 – 100%</span>
+                  </div>
+                  <input
+                    id="relativeHumidity"
+                    name="relativeHumidity"
+                    type="number"
+                    step="1"
+                    min="0"
+                    max="100"
+                    value={formData.relativeHumidity}
+                    onChange={handleChange}
+                    className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border text-sm text-white focus:outline-none focus:ring-2 transition-all ${
+                      errors.relativeHumidity
+                        ? 'border-rose-500 focus:ring-rose-500/30'
+                        : 'border-slate-800 focus:border-brand-500 focus:ring-brand-500/20'
+                    }`}
+                  />
+                  <p className="text-[11px] text-slate-400">
+                    Ambient RH ~50–60%, Cold Storage RH ~85–95%.
+                  </p>
+                  {errors.relativeHumidity && (
+                    <p className="text-xs text-rose-400 flex items-center gap-1 mt-1">
+                      <AlertCircle className="w-3 h-3 shrink-0" />
+                      {errors.relativeHumidity}
+                    </p>
+                  )}
+                </div>
+
+                {/* Desired Shelf Life */}
+                <div className="space-y-1.5">
+                  <label htmlFor="shelfLifeDays" className="block text-xs font-semibold text-slate-200">
+                    Target Shelf Life (Days) <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    id="shelfLifeDays"
+                    name="shelfLifeDays"
+                    type="number"
+                    min="1"
+                    value={formData.shelfLifeDays}
+                    onChange={handleChange}
+                    className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border text-sm text-white focus:outline-none focus:ring-2 transition-all ${
+                      errors.shelfLifeDays
+                        ? 'border-rose-500 focus:ring-rose-500/30'
+                        : 'border-slate-800 focus:border-brand-500 focus:ring-brand-500/20'
+                    }`}
+                  />
+                  <p className="text-[11px] text-slate-400">
+                    Target shelf life required to avoid spoilage.
+                  </p>
+                  {errors.shelfLifeDays && (
+                    <p className="text-xs text-rose-400 flex items-center gap-1 mt-1">
+                      <AlertCircle className="w-3 h-3 shrink-0" />
+                      {errors.shelfLifeDays}
+                    </p>
+                  )}
+                </div>
+
+                {/* Transportation Condition */}
+                <div className="space-y-1.5">
+                  <label htmlFor="transportCondition" className="block text-xs font-semibold text-slate-200">
+                    Transportation Logistics Chain
+                  </label>
+                  <select
+                    id="transportCondition"
+                    name="transportCondition"
+                    value={formData.transportCondition}
+                    onChange={handleChange}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
+                  >
+                    {TRANSPORTATION_CONDITIONS.map((tc) => (
+                      <option key={tc} value={tc} className="bg-slate-900 text-white">
+                        {tc}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Transportation Days */}
+                <div className="space-y-1.5">
+                  <label htmlFor="transportDays" className="block text-xs font-semibold text-slate-200">
+                    Transit Duration (Days)
+                  </label>
+                  <input
+                    id="transportDays"
+                    name="transportDays"
+                    type="number"
+                    min="0"
+                    value={formData.transportDays}
+                    onChange={handleChange}
+                    className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border text-sm text-white focus:outline-none focus:ring-2 transition-all ${
+                      errors.transportDays
+                        ? 'border-rose-500 focus:ring-rose-500/30'
+                        : 'border-slate-800 focus:border-brand-500 focus:ring-brand-500/20'
+                    }`}
+                  />
+                </div>
+              </div>
+            </Card>
+
+            {/* Section 3: Engineering Preferences & Format */}
+            <Card className="p-6 sm:p-8 space-y-6">
+              <div className="flex items-center gap-3 pb-4 border-b border-slate-800">
+                <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 font-bold text-xs">
+                  03
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-white">Packaging Form & Sustainability Priorities</h2>
+                  <p className="text-xs text-slate-400">Configure multi-criteria optimization weights and packaging formats.</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                {/* Sustainability Preference */}
+                <div className="space-y-1.5">
+                  <label htmlFor="sustainabilityPreference" className="block text-xs font-semibold text-slate-200">
+                    Sustainability & Circular Economy Goal
+                  </label>
+                  <select
+                    id="sustainabilityPreference"
+                    name="sustainabilityPreference"
+                    value={formData.sustainabilityPreference}
+                    onChange={handleChange}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
+                  >
+                    {SUSTAINABILITY_PREFERENCES.map((sp) => (
+                      <option key={sp.id} value={sp.id} className="bg-slate-900 text-white">
+                        {sp.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Packaging Format */}
+                <div className="space-y-1.5">
+                  <label htmlFor="packagingFormat" className="block text-xs font-semibold text-slate-200">
+                    Packaging Format Preference
+                  </label>
+                  <select
+                    id="packagingFormat"
+                    name="packagingFormat"
+                    value={formData.packagingFormat}
+                    onChange={handleChange}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
+                  >
+                    {PACKAGING_FORMATS.map((pf) => (
+                      <option key={pf} value={pf} className="bg-slate-900 text-white">
+                        {pf}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </Card>
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            {/* Sustainability Preference */}
-            <div className="space-y-1.5">
-              <label htmlFor="sustainabilityPreference" className="block text-xs font-semibold text-slate-200">
-                Sustainability & Circular Economy Goal
-              </label>
-              <select
-                id="sustainabilityPreference"
-                name="sustainabilityPreference"
-                value={formData.sustainabilityPreference}
-                onChange={handleChange}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
-              >
-                {SUSTAINABILITY_PREFERENCES.map((sp) => (
-                  <option key={sp.id} value={sp.id} className="bg-slate-900 text-white">
-                    {sp.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Packaging Format */}
-            <div className="space-y-1.5">
-              <label htmlFor="packagingFormat" className="block text-xs font-semibold text-slate-200">
-                Packaging Format Preference
-              </label>
-              <select
-                id="packagingFormat"
-                name="packagingFormat"
-                value={formData.packagingFormat}
-                onChange={handleChange}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
-              >
-                {PACKAGING_FORMATS.map((pf) => (
-                  <option key={pf} value={pf} className="bg-slate-900 text-white">
-                    {pf}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </Card>
+        )}
 
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
@@ -678,7 +1050,7 @@ export default function RecommendPage() {
             className="w-full sm:w-auto px-4 py-3 text-sm text-slate-400 hover:text-white flex items-center justify-center gap-2 hover:bg-slate-900 rounded-xl transition-colors"
           >
             <RotateCcw className="w-4 h-4" />
-            <span>Reset Defaults</span>
+            <span>Reset Form</span>
           </button>
 
           <Button
@@ -689,7 +1061,7 @@ export default function RecommendPage() {
             iconPosition="right"
             className="w-full sm:w-auto px-8"
           >
-            Analyze & Generate Recommendation
+            {isSimpleMode ? 'Get Recommended Packaging' : 'Analyze & Generate Recommendation'}
           </Button>
         </div>
       </form>
@@ -699,3 +1071,4 @@ export default function RecommendPage() {
     </div>
   );
 }
+

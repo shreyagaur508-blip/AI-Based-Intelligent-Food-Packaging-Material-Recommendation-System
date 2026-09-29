@@ -30,6 +30,7 @@ from app.schemas.recommendation import (
     RecommendationItem,
     MaterialRecommendationItem,
     DisqualifiedMaterial,
+    PlainLanguageSummary,
     RecommendationResponse,
 )
 
@@ -57,5 +58,6 @@ __all__ = [
     "RecommendationItem",
     "MaterialRecommendationItem",
     "DisqualifiedMaterial",
+    "PlainLanguageSummary",
     "RecommendationResponse",
 ]

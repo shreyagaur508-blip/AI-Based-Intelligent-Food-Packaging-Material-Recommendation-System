@@ -170,6 +170,21 @@ export default function ResultsPage() {
     "This system provides preliminary packaging decision support. Final commercial packaging must be validated using food-contact compliance checks, migration testing, barrier testing, seal integrity testing, transport testing, and actual shelf-life studies."
   );
 
+  const plainSummary = recommendation.plain_language_summary || {
+    must_do: reqs.breathable_film_needed
+      ? "Allow fresh produce to breathe naturally (controlled oxygen and CO2 exchange) while preventing sweat/condensation buildup to stop decay and mold."
+      : (risks.oxidation_risk === 'high' && risks.moisture_risk === 'high'
+          ? "Block outside air (oxygen) and humidity completely to preserve crispness and prevent oils/fats from going rancid."
+          : (risks.moisture_risk === 'high'
+              ? "Provide a strong moisture barrier to prevent humidity absorption, sogginess, and powder caking."
+              : "Provide hygienic barrier protection and containment tailored to storage conditions.")),
+    suggested_structure: reqs.breathable_film_needed
+      ? `Laser Micro-Perforated or Breathable Film Pouch (${primary.name || 'Breathable Film'})`
+      : `${primary.name || 'Protective Packaging'} (${primary.structure || 'Standard Multi-layer'})`,
+    storage_guidance: `Store in ${summary.storage_type || 'ambient'} conditions at ~${summary.storage_temperature ?? 20}°C with ${summary.relative_humidity ?? 55}% relative humidity.`,
+    key_takeaway: `Optimal choice: ${primary.name || 'Recommended Material'} provides tailored barrier protection for ${summary.commodity_name || 'your product'}.`
+  };
+
   // Combine primary + alternatives for unified comparison table
   const allCandidates = [
     { ...primary, role: 'Primary Recommendation', isPrimary: true },
@@ -225,6 +240,56 @@ export default function ResultsPage() {
           </div>
         </div>
       )}
+
+      {/* 0. Plain Language Summary Section (For Farmers and Non-Technical Users) */}
+      <Card className="p-6 sm:p-8 bg-gradient-to-br from-slate-900 via-emerald-950/25 to-slate-900 border-emerald-500/40 shadow-xl shadow-emerald-950/20 space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-800/80 gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold text-sm">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-extrabold text-white">Plain Language Summary</h2>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 uppercase tracking-wider">
+                  Farmer & Operator Friendly
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">Essential packaging guidance in straightforward, easy-to-understand terms</p>
+            </div>
+          </div>
+          <div className="text-xs text-emerald-400 font-semibold bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-500/20 self-start sm:self-auto">
+            Product: {summary.commodity_name || 'Food Commodity'}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* What the Packaging Must Do */}
+          <div className="p-5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-2.5">
+            <div className="flex items-center gap-2 text-emerald-400 text-sm font-bold">
+              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>What the Packaging Must Do</span>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-200 leading-relaxed font-medium">
+              {plainSummary.must_do}
+            </p>
+          </div>
+
+          {/* Suggested Packaging Structure */}
+          <div className="p-5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-2.5">
+            <div className="flex items-center gap-2 text-brand-400 text-sm font-bold">
+              <Package className="w-4 h-4 text-brand-400 shrink-0" />
+              <span>Suggested Packaging Structure</span>
+            </div>
+            <div className="text-xs sm:text-sm font-bold text-white">
+              {plainSummary.suggested_structure}
+            </div>
+            <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+              {plainSummary.storage_guidance}
+            </p>
+          </div>
+        </div>
+      </Card>
 
       {/* 1. Submitted Commodity Input Summary Card */}
       <Card className="p-6 sm:p-8 space-y-6">

@@ -251,3 +251,129 @@ def test_non_food_grade_materials_never_recommended(client):
     assert data["primary_recommendation"] is not None
     # All recommended materials should be food-grade
     assert data["primary_recommendation"]["material_id"] > 0
+
+
+# ==============================================================================
+# PHASE 5 TESTS: Simple Mode, "Use Typical Values", and Qualitative Mapping
+# ==============================================================================
+
+def test_simple_mode_tomato_minimal_defaults(client):
+    """Test Simple Mode request for Tomato with minimal fields (commodity_name + storage_type) and use_defaults=True."""
+    payload = {
+        "commodity_name": "Tomato",
+        "storage_type": "ambient",
+        "use_defaults": True,
+        "simple_mode": True,
+    }
+    response = client.post("/api/recommendations", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+
+    # Verify auto-filled defaults from database for Tomato
+    assert data["input_summary"]["commodity_name"] == "Tomato"
+    assert data["input_summary"]["moisture_percent"] == 94.0
+    assert data["input_summary"]["ph"] == 4.3
+    assert data["input_summary"]["respiration_rate"] in ("moderate", "medium")
+    assert data["input_summary"]["desired_shelf_life_days"] == 18
+
+    # Verify recommendations & plain language summary
+    assert data["primary_recommendation"] is not None
+    assert data["requirements"]["breathable_film_needed"] is True
+    assert "plain_language_summary" in data
+    assert data["plain_language_summary"]["must_do"]
+    assert data["plain_language_summary"]["suggested_structure"]
+    assert "breathe" in data["plain_language_summary"]["must_do"].lower() or "sweat" in data["plain_language_summary"]["must_do"].lower()
+
+
+def test_simple_mode_potato_chips_minimal_defaults(client):
+    """Test Simple Mode request for Potato Chips with minimal fields and use_defaults=True."""
+    payload = {
+        "commodity_name": "Potato Chips",
+        "storage_type": "ambient",
+        "use_defaults": True,
+        "simple_mode": True,
+    }
+    response = client.post("/api/recommendations", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+
+    # Verify auto-filled defaults from database for Potato Chips
+    assert data["input_summary"]["commodity_name"] == "Potato Chips"
+    assert data["input_summary"]["moisture_percent"] == 1.8
+    assert data["input_summary"]["oil_fat_level"] == "high"
+    assert data["input_summary"]["desired_shelf_life_days"] == 180
+
+    # Strict moisture and oxygen barrier requirements
+    assert data["requirements"]["required_otr_category"] in ("very_low", "low")
+    assert data["requirements"]["required_wvtr_category"] in ("very_low", "low")
+    assert data["requirements"]["breathable_film_needed"] is False
+    assert "plain_language_summary" in data
+    assert "crisp" in data["plain_language_summary"]["must_do"].lower() or "oxygen" in data["plain_language_summary"]["must_do"].lower() or "humidity" in data["plain_language_summary"]["must_do"].lower()
+
+
+def test_simple_mode_categories_only(client):
+    """Test Simple Mode request using qualitative categories (no numeric moisture/pH/shelf-life provided)."""
+    payload = {
+        "commodity_name": "Custom Extruded Crisp",
+        "simple_mode": True,
+        "use_defaults": True,
+        "moisture_category": "low",
+        "ph_category": "neutral",
+        "oil_fat_category": "high",
+        "respiration_category": "none",
+        "shelf_life_category": "long",
+        "transport_category": "long_distance",
+        "sustainability_preference": "high",
+        "storage_type": "ambient",
+    }
+    response = client.post("/api/recommendations", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+
+    # Verify categories mapped to numeric equivalents
+    assert data["input_summary"]["moisture_percent"] == 2.0
+    assert data["input_summary"]["ph"] == 6.8
+    assert data["input_summary"]["oil_fat_level"] == "high"
+    assert data["input_summary"]["respiration_rate"] == "very_low"
+    assert data["input_summary"]["desired_shelf_life_days"] == 90
+    assert data["input_summary"]["transportation_duration_days"] == 7
+    assert data["input_summary"]["transportation_condition"] == "long_distance"
+
+    # Verify risk profile and recommendation generated
+    assert data["risk_profile"]["moisture_risk"] == "high"
+    assert data["risk_profile"]["oxidation_risk"] == "high"
+    assert data["primary_recommendation"] is not None
+
+
+def test_advanced_mode_full_numeric_request(client):
+    """Test Advanced Mode request with explicit lab data, use_defaults=False, and simple_mode=False."""
+    payload = {
+        "commodity_name": "Lab Formulated Snack",
+        "commodity_category": "High-Fat Snacks",
+        "simple_mode": False,
+        "use_defaults": False,
+        "moisture_percent": 2.4,
+        "ph": 5.8,
+        "oil_fat_level": "high",
+        "respiration_rate": "very_low",
+        "desired_shelf_life_days": 120,
+        "storage_type": "ambient",
+        "storage_temperature": 25.0,
+        "relative_humidity": 60.0,
+        "transportation_condition": "regional",
+        "transportation_duration_days": 3,
+        "sustainability_preference": "balanced",
+        "packaging_format_preference": "pouch",
+    }
+    response = client.post("/api/recommendations", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+
+    # Exact numbers preserved without default overriding
+    assert data["input_summary"]["moisture_percent"] == 2.4
+    assert data["input_summary"]["ph"] == 5.8
+    assert data["input_summary"]["storage_temperature"] == 25.0
+    assert data["input_summary"]["relative_humidity"] == 60.0
+    assert data["input_summary"]["desired_shelf_life_days"] == 120
+    assert data["primary_recommendation"] is not None
+
