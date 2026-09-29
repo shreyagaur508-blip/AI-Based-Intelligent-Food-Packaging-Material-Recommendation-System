@@ -331,8 +331,8 @@ def test_simple_mode_categories_only(client):
     data = response.json()
 
     # Verify categories mapped to numeric equivalents
-    assert data["input_summary"]["moisture_percent"] == 2.0
-    assert data["input_summary"]["ph"] == 6.8
+    assert data["input_summary"]["moisture_percent"] == 2.5
+    assert data["input_summary"]["ph"] == 6.5
     assert data["input_summary"]["oil_fat_level"] == "high"
     assert data["input_summary"]["respiration_rate"] == "very_low"
     assert data["input_summary"]["desired_shelf_life_days"] == 90
@@ -376,4 +376,138 @@ def test_advanced_mode_full_numeric_request(client):
     assert data["input_summary"]["relative_humidity"] == 60.0
     assert data["input_summary"]["desired_shelf_life_days"] == 120
     assert data["primary_recommendation"] is not None
+
+
+# ==============================================================================
+# PHASE 6 TESTS: Category-Based Inputs (pH, Moisture, Oil/Fat, Respiration)
+# ==============================================================================
+
+def test_phase6_category_only_tomato(client):
+    """Test recommendation for Tomato using purely category-based inputs: pH=acidic, moisture=very_moist."""
+    payload = {
+        "commodity_name": "Tomato",
+        "commodity_category": "Fresh Produce",
+        "ph_category": "acidic",
+        "moisture_category": "very_moist",
+        "oil_fat_category": "very_low",
+        "respiration_category": "medium",
+        "storage_type": "ambient",
+        "use_defaults": False,
+        "simple_mode": False,
+    }
+    response = client.post("/api/recommendations", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+
+    # Verify category values were mapped to numeric ranges
+    assert data["input_summary"]["ph"] == 4.2  # acidic -> 4.2
+    assert data["input_summary"]["moisture_percent"] == 88.0  # very_moist -> 88.0
+    assert data["input_summary"]["oil_fat_level"] == "low"  # very_low -> low
+    assert data["input_summary"]["respiration_rate"] == "medium"
+
+    # Respiration and moisture risks derived accurately
+    assert data["risk_profile"]["respiration_risk"] == "high"
+    assert data["risk_profile"]["moisture_risk"] == "high"
+    assert data["requirements"]["breathable_film_needed"] is True
+    assert data["primary_recommendation"] is not None
+
+
+def test_phase6_category_only_potato_chips(client):
+    """Test recommendation for Potato Chips using moisture_category=very_dry and oil_fat_category=high."""
+    payload = {
+        "commodity_name": "Potato Chips",
+        "commodity_category": "Dry Crisp Foods",
+        "moisture_category": "very_dry",
+        "oil_fat_category": "high",
+        "ph_category": "neutral",
+        "respiration_category": "very_low",
+        "storage_type": "ambient",
+        "use_defaults": False,
+        "simple_mode": False,
+    }
+    response = client.post("/api/recommendations", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+
+    assert data["input_summary"]["moisture_percent"] == 2.5  # very_dry -> 2.5%
+    assert data["input_summary"]["oil_fat_level"] == "high"  # high -> high
+    assert data["input_summary"]["ph"] == 6.5  # neutral -> 6.5
+    assert data["input_summary"]["respiration_rate"] == "very_low"
+
+    assert data["risk_profile"]["moisture_risk"] == "high"
+    assert data["risk_profile"]["oxidation_risk"] == "high"
+    assert data["requirements"]["required_otr_category"] in ("very_low", "low")
+    assert data["requirements"]["required_wvtr_category"] in ("very_low", "low")
+    assert data["primary_recommendation"] is not None
+
+
+def test_phase6_category_only_milk_powder(client):
+    """Test recommendation for Milk Powder using moisture_category=very_dry and ph_category=neutral."""
+    payload = {
+        "commodity_name": "Milk Powder",
+        "commodity_category": "Powders & Grains",
+        "moisture_category": "very_dry",
+        "ph_category": "neutral",
+        "oil_fat_category": "medium",
+        "respiration_category": "very_low",
+        "use_defaults": False,
+    }
+    response = client.post("/api/recommendations", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+
+    assert data["input_summary"]["moisture_percent"] == 2.5
+    assert data["input_summary"]["ph"] == 6.5
+    assert data["risk_profile"]["moisture_risk"] == "high"
+    assert data["primary_recommendation"] is not None
+
+
+def test_phase6_mixed_category_and_numeric(client):
+    """Test request mixing category fields with explicit numeric fields."""
+    payload = {
+        "commodity_name": "Specialty Bakery Tart",
+        "ph_category": "acidic",  # Category: acidic (4.2)
+        "moisture_percent": 42.5,  # Explicit numeric moisture takes priority
+        "oil_fat_category": "high",  # Category: high
+        "respiration_rate": "very_low",  # Explicit respiration
+        "storage_temperature": 18.0,
+        "desired_shelf_life_days": 45,
+        "use_defaults": False,
+    }
+    response = client.post("/api/recommendations", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+
+    # Explicit numeric moisture_percent (42.5) preserved
+    assert data["input_summary"]["moisture_percent"] == 42.5
+    # Category ph mapped to 4.2
+    assert data["input_summary"]["ph"] == 4.2
+    assert data["input_summary"]["oil_fat_level"] == "high"
+    assert data["input_summary"]["respiration_rate"] == "very_low"
+    assert data["input_summary"]["desired_shelf_life_days"] == 45
+    assert data["primary_recommendation"] is not None
+
+
+def test_phase6_numeric_takes_precedence_over_category(client):
+    """Test that when both numeric and category fields are provided, numeric takes precedence."""
+    payload = {
+        "commodity_name": "Test Product",
+        "moisture_percent": 12.0,
+        "moisture_category": "very_dry",  # Should be ignored in favor of 12.0
+        "ph": 5.2,
+        "ph_category": "alkaline",  # Should be ignored in favor of 5.2
+        "oil_fat_level": "very_high",
+        "oil_fat_category": "low",  # Should be ignored in favor of very_high
+        "respiration_rate": "high",
+        "respiration_category": "very_low",  # Should be ignored in favor of high
+    }
+    response = client.post("/api/recommendations", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+
+    assert data["input_summary"]["moisture_percent"] == 12.0
+    assert data["input_summary"]["ph"] == 5.2
+    assert data["input_summary"]["oil_fat_level"] == "very_high"
+    assert data["input_summary"]["respiration_rate"] == "high"
+
 

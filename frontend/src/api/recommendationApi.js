@@ -7,6 +7,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000
 
 /**
  * Normalizes user form inputs to match backend RecommendationRequest schema for simple and advanced modes.
+ * Supports Phase 6 category-based inputs (moisture_category, ph_category, oil_fat_category, respiration_category).
  * @param {Object} formData
  * @returns {Object}
  */
@@ -24,6 +25,18 @@ export function normalizeRecommendationPayload(formData) {
       storage_type: (formData.storage_type || formData.storageType || 'ambient').toLowerCase(),
     };
 
+    if (formData.moisture_category || formData.moistureCategory) {
+      payload.moisture_category = formData.moisture_category || formData.moistureCategory;
+    }
+    if (formData.ph_category || formData.phCategory) {
+      payload.ph_category = formData.ph_category || formData.phCategory;
+    }
+    if (formData.oil_fat_category || formData.oilFatCategory) {
+      payload.oil_fat_category = formData.oil_fat_category || formData.oilFatCategory;
+    }
+    if (formData.respiration_category || formData.respirationCategory) {
+      payload.respiration_category = formData.respiration_category || formData.respirationCategory;
+    }
     if (formData.shelf_life_category || formData.shelfLifeCategory) {
       payload.shelf_life_category = formData.shelf_life_category || formData.shelfLifeCategory;
     }
@@ -40,16 +53,29 @@ export function normalizeRecommendationPayload(formData) {
     return payload;
   }
 
-  // 2. ADVANCED MODE PAYLOAD (Full technical lab metrics)
+  // 2. ADVANCED MODE PAYLOAD (Category-based inputs with optional exact overrides)
   const category = formData.commodity_category || formData.category || 'Other / Custom';
-  const moisture = parseFloat(formData.moisture_percent ?? formData.moisture);
   
+  // Moisture: category or exact numeric
+  const moistureCategory = formData.moisture_category || formData.moistureCategory;
+  const isExactMoisture = moistureCategory === 'exact' || (moistureCategory === undefined && (formData.moisture_percent !== undefined || formData.moisture !== undefined));
+  const moistureNum = parseFloat(formData.moisture_percent ?? formData.moisture);
+
+  // pH: category or exact numeric
+  const phCategory = formData.ph_category || formData.phCategory;
+  const isExactPh = phCategory === 'exact' || (phCategory === undefined && (formData.ph !== undefined || formData.pH !== undefined));
+  const phNum = parseFloat(formData.ph ?? formData.pH);
+
+  // Oil / Fat: category or exact level
+  const oilFatCategory = formData.oil_fat_category || formData.oilFatCategory;
+  const isExactOilFat = oilFatCategory === 'exact' || (oilFatCategory === undefined && (formData.oil_fat_level !== undefined || formData.oilFatLevel !== undefined));
   let oilFat = (formData.oil_fat_level || formData.oilFatLevel || 'low').toLowerCase();
   if (oilFat === 'none') oilFat = 'low';
   else if (oilFat === 'moderate') oilFat = 'medium';
 
-  const ph = parseFloat(formData.ph ?? formData.pH);
-
+  // Respiration: category or exact rate
+  const respirationCategory = formData.respiration_category || formData.respirationCategory;
+  const isExactRespiration = respirationCategory === 'exact' || (respirationCategory === undefined && (formData.respiration_rate !== undefined || formData.respirationRate !== undefined));
   let respiration = (formData.respiration_rate || formData.respirationRate || 'very_low').toLowerCase();
   if (respiration === 'none' || respiration === 'zero') respiration = 'very_low';
   else if (respiration === 'moderate') respiration = 'medium';
@@ -63,17 +89,13 @@ export function normalizeRecommendationPayload(formData) {
   const sustainabilityPreference = (formData.sustainability_preference || formData.sustainabilityPreference || 'medium').toLowerCase();
   const packagingFormat = formData.packaging_format_preference || formData.packagingFormat || 'pouch';
 
-  return {
+  const payload = {
     simple_mode: false,
     use_defaults: useDefaults,
     commodity_name: commodityName,
     commodity_category: category,
-    moisture_percent: isNaN(moisture) ? null : moisture,
-    oil_fat_level: oilFat,
-    ph: isNaN(ph) ? null : ph,
-    respiration_rate: respiration,
-    desired_shelf_life_days: isNaN(shelfLife) ? null : shelfLife,
     storage_type: storageType,
+    desired_shelf_life_days: isNaN(shelfLife) ? null : shelfLife,
     storage_temperature: isNaN(storageTemp) ? null : storageTemp,
     relative_humidity: isNaN(relativeHumidity) ? null : relativeHumidity,
     transportation_condition: transportCondition,
@@ -81,6 +103,44 @@ export function normalizeRecommendationPayload(formData) {
     sustainability_preference: sustainabilityPreference,
     packaging_format_preference: packagingFormat,
   };
+
+  // Assign Moisture
+  if (isExactMoisture && !isNaN(moistureNum)) {
+    payload.moisture_percent = moistureNum;
+  } else if (moistureCategory && moistureCategory !== 'exact') {
+    payload.moisture_category = moistureCategory;
+  } else if (!isNaN(moistureNum)) {
+    payload.moisture_percent = moistureNum;
+  }
+
+  // Assign pH
+  if (isExactPh && !isNaN(phNum)) {
+    payload.ph = phNum;
+  } else if (phCategory && phCategory !== 'exact') {
+    payload.ph_category = phCategory;
+  } else if (!isNaN(phNum)) {
+    payload.ph = phNum;
+  }
+
+  // Assign Oil / Fat
+  if (isExactOilFat && oilFat) {
+    payload.oil_fat_level = oilFat;
+  } else if (oilFatCategory && oilFatCategory !== 'exact') {
+    payload.oil_fat_category = oilFatCategory;
+  } else if (oilFat) {
+    payload.oil_fat_level = oilFat;
+  }
+
+  // Assign Respiration
+  if (isExactRespiration && respiration) {
+    payload.respiration_rate = respiration;
+  } else if (respirationCategory && respirationCategory !== 'exact') {
+    payload.respiration_category = respirationCategory;
+  } else if (respiration) {
+    payload.respiration_rate = respiration;
+  }
+
+  return payload;
 }
 
 /**

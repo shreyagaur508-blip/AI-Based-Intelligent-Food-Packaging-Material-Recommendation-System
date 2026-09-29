@@ -22,6 +22,39 @@ export const OIL_FAT_LEVELS = [
   { value: 'high', label: 'High (> 20% - Lipid Oxidation Risk)' },
 ];
 
+export const MOISTURE_CATEGORY_OPTIONS = [
+  { value: 'very_dry', label: 'Very Dry (0–10% moisture)', example: 'Chips, biscuits, milk powder, dry snacks' },
+  { value: 'dry', label: 'Dry (10–30% moisture)', example: 'Wheat flour, rice, pulses, dried foods' },
+  { value: 'moist', label: 'Moist (30–70% moisture)', example: 'Fresh paneer, cheese, filled bakery' },
+  { value: 'very_moist', label: 'Very Moist (70–100% moisture)', example: 'Leafy vegetables, tomatoes, fresh fruits' },
+  { value: 'exact', label: 'I know the exact % (Custom numeric)', example: 'Enter laboratory measured moisture percentage' },
+];
+
+export const PH_CATEGORY_OPTIONS = [
+  { value: 'acidic', label: 'Acidic (pH 3.0–4.6)', example: 'Tomato, citrus fruits, berries, fruit juices' },
+  { value: 'neutral', label: 'Neutral / Low-Acid (pH 4.7–7.0)', example: 'Milk, paneer, most vegetables, grains' },
+  { value: 'alkaline', label: 'Alkaline (pH 7.1–8.5)', example: 'Specialized alkaline processed foods, ramen noodles' },
+  { value: 'exact', label: 'I know the exact pH (Custom numeric)', example: 'Enter laboratory measured pH value' },
+];
+
+export const OIL_FAT_CATEGORY_OPTIONS = [
+  { value: 'very_low', label: 'Very Low (< 1% lipid)', example: 'Fresh fruits, vegetables, leafy greens' },
+  { value: 'low', label: 'Low (1–5% lipid)', example: 'Grains, pulses, skimmed dairy' },
+  { value: 'medium', label: 'Medium (5–20% lipid)', example: 'Baked goods, whole milk dairy, cookies' },
+  { value: 'high', label: 'High (20–35% lipid)', example: 'Fried chips, namkeen, roasted nuts' },
+  { value: 'very_high', label: 'Very High (> 35% lipid)', example: 'Butter, pure fats, oil-rich confectionery' },
+  { value: 'exact', label: 'I know the exact level', example: 'Select custom lipid tier' },
+];
+
+export const RESPIRATION_CATEGORY_OPTIONS = [
+  { value: 'very_low', label: 'Very Low / Non-Respiring', example: 'Processed foods, dry snacks, chips, powders' },
+  { value: 'low', label: 'Low Respiration', example: 'Onions, garlic, potatoes' },
+  { value: 'medium', label: 'Medium Respiration', example: 'Fresh tomatoes, bell peppers, carrots, mangoes' },
+  { value: 'high', label: 'High Respiration', example: 'Bananas, strawberries, avocados' },
+  { value: 'very_high', label: 'Very High Respiration', example: 'Spinach, asparagus, mushrooms, leafy greens' },
+  { value: 'i_dont_know', label: 'I don’t know', example: 'PackWise will apply safe standard non-respiring profile' },
+];
+
 export const RESPIRATION_RATES = [
   { value: 'none', label: 'None (Non-respiring / Processed food)' },
   { value: 'low', label: 'Low (e.g., Onions, Potatoes)' },

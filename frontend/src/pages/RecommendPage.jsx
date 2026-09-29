@@ -31,7 +31,11 @@ import {
   TRANSPORTATION_CONDITIONS,
   SUSTAINABILITY_PREFERENCES,
   PACKAGING_FORMATS,
-  PRESET_COMMODITIES
+  PRESET_COMMODITIES,
+  MOISTURE_CATEGORY_OPTIONS,
+  PH_CATEGORY_OPTIONS,
+  OIL_FAT_CATEGORY_OPTIONS,
+  RESPIRATION_CATEGORY_OPTIONS
 } from '../data/mockData';
 import { generateRecommendation, fetchCommodities } from '../api/recommendationApi';
 
@@ -55,9 +59,14 @@ const SIMPLE_SUSTAINABILITY_OPTIONS = [
 const INITIAL_FORM_STATE = {
   commodityName: 'Tomato',
   category: 'Fresh Produce',
+  // Phase 6 Category Fields + Exact Mode flags
+  moistureCategory: 'very_moist', // 'very_dry' | 'dry' | 'moist' | 'very_moist' | 'exact'
   moisture: '94.0',
+  oilFatCategory: 'very_low', // 'very_low' | 'low' | 'medium' | 'high' | 'very_high' | 'exact'
   oilFatLevel: 'none',
+  phCategory: 'acidic', // 'acidic' | 'neutral' | 'alkaline' | 'exact'
   pH: '4.3',
+  respirationCategory: 'medium', // 'very_low' | 'low' | 'medium' | 'high' | 'very_high' | 'i_dont_know'
   respirationRate: 'moderate',
   shelfLifeDays: '18',
   storageType: 'ambient',
@@ -122,13 +131,53 @@ export default function RecommendPage() {
 
   const loadPreset = (preset) => {
     setSelectedPresetId(preset.id || preset.name.toLowerCase().replace(/\s+/g, '_'));
+
+    const moistureVal = (preset.default_moisture_percent ?? preset.moisture ?? 15.0).toString();
+    const moistureNum = parseFloat(moistureVal);
+    let mCat = 'moist';
+    if (!isNaN(moistureNum)) {
+      if (moistureNum <= 10) mCat = 'very_dry';
+      else if (moistureNum <= 30) mCat = 'dry';
+      else if (moistureNum <= 70) mCat = 'moist';
+      else mCat = 'very_moist';
+    }
+
+    const phVal = (preset.default_ph ?? preset.pH ?? 6.0).toString();
+    const phNum = parseFloat(phVal);
+    let pCat = 'neutral';
+    if (!isNaN(phNum)) {
+      if (phNum <= 4.6) pCat = 'acidic';
+      else if (phNum <= 7.0) pCat = 'neutral';
+      else pCat = 'alkaline';
+    }
+
+    const rawOil = (preset.oil_fat_level || preset.oilFatLevel || 'low').toLowerCase();
+    let oCat = 'low';
+    if (rawOil === 'none' || rawOil === 'very_low') oCat = 'very_low';
+    else if (rawOil === 'low') oCat = 'low';
+    else if (rawOil === 'moderate' || rawOil === 'medium') oCat = 'medium';
+    else if (rawOil === 'high') oCat = 'high';
+    else if (rawOil === 'very_high') oCat = 'very_high';
+
+    const rawResp = (preset.respiration_class || preset.respirationRate || 'very_low').toLowerCase();
+    let rCat = 'very_low';
+    if (rawResp === 'none' || rawResp === 'zero' || rawResp === 'very_low') rCat = 'very_low';
+    else if (rawResp === 'low') rCat = 'low';
+    else if (rawResp === 'moderate' || rawResp === 'medium') rCat = 'medium';
+    else if (rawResp === 'high') rCat = 'high';
+    else if (rawResp === 'very_high') rCat = 'very_high';
+
     setFormData({
       commodityName: preset.name,
       category: preset.category || 'Other / Custom',
-      moisture: (preset.default_moisture_percent ?? preset.moisture ?? 15.0).toString(),
-      oilFatLevel: preset.oil_fat_level || preset.oilFatLevel || 'low',
-      pH: (preset.default_ph ?? preset.pH ?? 6.0).toString(),
-      respirationRate: preset.respiration_class || preset.respirationRate || 'very_low',
+      moistureCategory: mCat,
+      moisture: moistureVal,
+      oilFatCategory: oCat,
+      oilFatLevel: rawOil,
+      phCategory: pCat,
+      pH: phVal,
+      respirationCategory: rCat,
+      respirationRate: rawResp,
       shelfLifeDays: (preset.base_shelf_life_days ?? preset.shelfLifeDays ?? 30).toString(),
       storageType: preset.recommended_storage_type || preset.storageType || 'ambient',
       storageTemp: (preset.minimum_storage_temperature !== undefined
@@ -155,16 +204,20 @@ export default function RecommendPage() {
       newErrors.commodityName = 'Commodity name is required.';
     }
 
-    // In Advanced Mode, validate all numeric scientific fields
+    // In Advanced Mode, validate numeric scientific fields if exact mode selected
     if (!isSimpleMode) {
-      const moistureNum = parseFloat(formData.moisture);
-      if (isNaN(moistureNum) || moistureNum < 0 || moistureNum > 100) {
-        newErrors.moisture = 'Moisture content must be a percentage between 0 and 100.';
+      if (formData.moistureCategory === 'exact') {
+        const moistureNum = parseFloat(formData.moisture);
+        if (isNaN(moistureNum) || moistureNum < 0 || moistureNum > 100) {
+          newErrors.moisture = 'Moisture content must be a percentage between 0 and 100.';
+        }
       }
 
-      const phNum = parseFloat(formData.pH);
-      if (isNaN(phNum) || phNum < 0 || phNum > 14) {
-        newErrors.pH = 'pH value must be between 0.0 and 14.0.';
+      if (formData.phCategory === 'exact') {
+        const phNum = parseFloat(formData.pH);
+        if (isNaN(phNum) || phNum < 0 || phNum > 14) {
+          newErrors.pH = 'pH value must be between 0.0 and 14.0.';
+        }
       }
 
       const rhNum = parseFloat(formData.relativeHumidity);
@@ -700,118 +753,232 @@ export default function RecommendPage() {
                   </select>
                 </div>
 
-                {/* Moisture Content % */}
+                {/* Moisture Content (Category Dropdown + Optional Exact %) */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <label htmlFor="moisture" className="block text-xs font-semibold text-slate-200">
-                      Moisture Content (%) <span className="text-rose-400">*</span>
+                    <label htmlFor="moistureCategory" className="block text-xs font-semibold text-slate-200">
+                      Moisture Content <span className="text-rose-400">*</span>
                     </label>
-                    <span className="text-[11px] text-slate-400">0 – 100%</span>
+                    <span className="text-[11px] text-brand-400">Category or Exact %</span>
                   </div>
-                  <input
-                    id="moisture"
-                    name="moisture"
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    max="100"
-                    value={formData.moisture}
-                    onChange={handleChange}
-                    className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border text-sm text-white focus:outline-none focus:ring-2 transition-all ${
-                      errors.moisture
-                        ? 'border-rose-500 focus:ring-rose-500/30'
-                        : 'border-slate-800 focus:border-brand-500 focus:ring-brand-500/20'
-                    }`}
-                  />
-                  <p className="text-[11px] text-slate-400">
-                    Example: fresh fruits/vegetables ~80–95%, chips ~1–3%, biscuits ~2–5%.
-                  </p>
-                  {errors.moisture && (
-                    <p className="text-xs text-rose-400 flex items-center gap-1 mt-1">
-                      <AlertCircle className="w-3 h-3 shrink-0" />
-                      {errors.moisture}
-                    </p>
-                  )}
-                </div>
-
-                {/* Oil / Fat Level */}
-                <div className="space-y-1.5">
-                  <label htmlFor="oilFatLevel" className="block text-xs font-semibold text-slate-200">
-                    Oil & Fat Level (Oxidation Risk)
-                  </label>
                   <select
-                    id="oilFatLevel"
-                    name="oilFatLevel"
-                    value={formData.oilFatLevel}
+                    id="moistureCategory"
+                    name="moistureCategory"
+                    value={formData.moistureCategory}
                     onChange={handleChange}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
                   >
-                    {OIL_FAT_LEVELS.map((opt) => (
+                    {MOISTURE_CATEGORY_OPTIONS.map((opt) => (
                       <option key={opt.value} value={opt.value} className="bg-slate-900 text-white">
                         {opt.label}
                       </option>
                     ))}
                   </select>
-                  <p className="text-[11px] text-slate-400">
-                    Very low: most fruits/veg. High: chips, namkeen, roasted nuts.
-                  </p>
-                </div>
 
-                {/* pH Value */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label htmlFor="pH" className="block text-xs font-semibold text-slate-200">
-                      pH Value <span className="text-rose-400">*</span>
-                    </label>
-                    <span className="text-[11px] text-slate-400">0.0 – 14.0</span>
-                  </div>
-                  <input
-                    id="pH"
-                    name="pH"
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    max="14"
-                    value={formData.pH}
-                    onChange={handleChange}
-                    className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border text-sm text-white focus:outline-none focus:ring-2 transition-all ${
-                      errors.pH
-                        ? 'border-rose-500 focus:ring-rose-500/30'
-                        : 'border-slate-800 focus:border-brand-500 focus:ring-brand-500/20'
-                    }`}
-                  />
-                  <p className="text-[11px] text-slate-400">
-                    Acidic: tomato, citrus. Neutral: milk, paneer.
-                  </p>
-                  {errors.pH && (
-                    <p className="text-xs text-rose-400 flex items-center gap-1 mt-1">
-                      <AlertCircle className="w-3 h-3 shrink-0" />
-                      {errors.pH}
-                    </p>
+                  {/* If "I know the exact %" is selected, show numeric input */}
+                  {formData.moistureCategory === 'exact' ? (
+                    <div className="pt-1.5 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label htmlFor="moisture" className="text-[11px] font-medium text-slate-300">
+                          Exact Moisture Percentage (%) <span className="text-rose-400">*</span>
+                        </label>
+                        <span className="text-[10px] text-slate-400">0 – 100%</span>
+                      </div>
+                      <input
+                        id="moisture"
+                        name="moisture"
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        value={formData.moisture}
+                        onChange={handleChange}
+                        placeholder="e.g., 94.0"
+                        className={`w-full px-3 py-2 rounded-lg bg-slate-900 border text-xs text-white focus:outline-none focus:ring-2 transition-all ${
+                          errors.moisture
+                            ? 'border-rose-500 focus:ring-rose-500/30'
+                            : 'border-slate-700 focus:border-brand-500 focus:ring-brand-500/20'
+                        }`}
+                      />
+                      {errors.moisture && (
+                        <p className="text-[11px] text-rose-400 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          {errors.moisture}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    /* Contextual Tooltip Helper for Moisture */
+                    <div className="p-2 rounded-lg bg-slate-950/50 border border-slate-800/80 text-[11px] text-slate-400 leading-tight flex items-start gap-1.5">
+                      <Info className="w-3.5 h-3.5 text-brand-400 shrink-0 mt-0.5" />
+                      <span>
+                        {formData.moistureCategory === 'very_dry' && 'Very dry: chips, biscuits, milk powder, dry snacks.'}
+                        {formData.moistureCategory === 'dry' && 'Dry: wheat flour, rice, pulses, dry grains, dried foods.'}
+                        {formData.moistureCategory === 'moist' && 'Moist: fresh paneer, cheese, bakery with fillings.'}
+                        {formData.moistureCategory === 'very_moist' && 'Very moist: leafy vegetables, fresh fruits, vine tomatoes.'}
+                      </span>
+                    </div>
                   )}
                 </div>
 
-                {/* Respiration Rate */}
+                {/* Oil / Fat Level (Category Dropdown + Optional Exact Level) */}
                 <div className="space-y-1.5">
-                  <label htmlFor="respirationRate" className="block text-xs font-semibold text-slate-200">
-                    Respiration Rate (Produce Kinetics)
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="oilFatCategory" className="block text-xs font-semibold text-slate-200">
+                      Oil & Fat Level (Oxidation Risk)
+                    </label>
+                    <span className="text-[11px] text-brand-400">Category or Exact</span>
+                  </div>
                   <select
-                    id="respirationRate"
-                    name="respirationRate"
-                    value={formData.respirationRate}
+                    id="oilFatCategory"
+                    name="oilFatCategory"
+                    value={formData.oilFatCategory}
                     onChange={handleChange}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
                   >
-                    {RESPIRATION_RATES.map((opt) => (
+                    {OIL_FAT_CATEGORY_OPTIONS.map((opt) => (
                       <option key={opt.value} value={opt.value} className="bg-slate-900 text-white">
                         {opt.label}
                       </option>
                     ))}
                   </select>
-                  <p className="text-[11px] text-slate-400">
-                    High/Very High: leafy veg, bananas. None: chips, biscuits, dry powders.
-                  </p>
+
+                  {/* If "I know the exact level" is selected, show exact level dropdown */}
+                  {formData.oilFatCategory === 'exact' ? (
+                    <div className="pt-1.5 space-y-1">
+                      <label htmlFor="oilFatLevel" className="text-[11px] font-medium text-slate-300">
+                        Exact Lipid Content Tier
+                      </label>
+                      <select
+                        id="oilFatLevel"
+                        name="oilFatLevel"
+                        value={formData.oilFatLevel}
+                        onChange={handleChange}
+                        className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+                      >
+                        {OIL_FAT_LEVELS.map((opt) => (
+                          <option key={opt.value} value={opt.value} className="bg-slate-900 text-white">
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    /* Contextual Tooltip Helper for Oil/Fat */
+                    <div className="p-2 rounded-lg bg-slate-950/50 border border-slate-800/80 text-[11px] text-slate-400 leading-tight flex items-start gap-1.5">
+                      <Info className="w-3.5 h-3.5 text-brand-400 shrink-0 mt-0.5" />
+                      <span>
+                        {formData.oilFatCategory === 'very_low' && 'Very low: most fresh produce, fruits, vegetables.'}
+                        {formData.oilFatCategory === 'low' && 'Low: grains, pulses, skimmed/low-fat dairy.'}
+                        {formData.oilFatCategory === 'medium' && 'Medium: baked goods, whole milk dairy, cookies.'}
+                        {formData.oilFatCategory === 'high' && 'High: potato chips, namkeen, roasted nuts.'}
+                        {formData.oilFatCategory === 'very_high' && 'Very high: butter, pure fats, oil-rich confectionery.'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* pH Value (Category Dropdown + Optional Exact pH) */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="phCategory" className="block text-xs font-semibold text-slate-200">
+                      pH Level / Acidity <span className="text-rose-400">*</span>
+                    </label>
+                    <span className="text-[11px] text-brand-400">Category or Exact pH</span>
+                  </div>
+                  <select
+                    id="phCategory"
+                    name="phCategory"
+                    value={formData.phCategory}
+                    onChange={handleChange}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
+                  >
+                    {PH_CATEGORY_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value} className="bg-slate-900 text-white">
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* If "I know the exact pH" is selected, show numeric input */}
+                  {formData.phCategory === 'exact' ? (
+                    <div className="pt-1.5 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label htmlFor="pH" className="text-[11px] font-medium text-slate-300">
+                          Exact pH Value <span className="text-rose-400">*</span>
+                        </label>
+                        <span className="text-[10px] text-slate-400">0.0 – 14.0</span>
+                      </div>
+                      <input
+                        id="pH"
+                        name="pH"
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="14"
+                        value={formData.pH}
+                        onChange={handleChange}
+                        placeholder="e.g., 4.3"
+                        className={`w-full px-3 py-2 rounded-lg bg-slate-900 border text-xs text-white focus:outline-none focus:ring-2 transition-all ${
+                          errors.pH
+                            ? 'border-rose-500 focus:ring-rose-500/30'
+                            : 'border-slate-700 focus:border-brand-500 focus:ring-brand-500/20'
+                        }`}
+                      />
+                      {errors.pH && (
+                        <p className="text-[11px] text-rose-400 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          {errors.pH}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    /* Contextual Tooltip Helper for pH */
+                    <div className="p-2 rounded-lg bg-slate-950/50 border border-slate-800/80 text-[11px] text-slate-400 leading-tight flex items-start gap-1.5">
+                      <Info className="w-3.5 h-3.5 text-brand-400 shrink-0 mt-0.5" />
+                      <span>
+                        {formData.phCategory === 'acidic' && 'Acidic: tomato, citrus fruits, berries, fruit juices.'}
+                        {formData.phCategory === 'neutral' && 'Neutral: milk, paneer, most vegetables, grains, pulses.'}
+                        {formData.phCategory === 'alkaline' && 'Alkaline: alkaline processed foods, ramen noodles.'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Respiration Rate (Category Dropdown) */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="respirationCategory" className="block text-xs font-semibold text-slate-200">
+                      Respiration Rate (Produce Kinetics)
+                    </label>
+                    <span className="text-[11px] text-brand-400">Biological Rate</span>
+                  </div>
+                  <select
+                    id="respirationCategory"
+                    name="respirationCategory"
+                    value={formData.respirationCategory}
+                    onChange={handleChange}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
+                  >
+                    {RESPIRATION_CATEGORY_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value} className="bg-slate-900 text-white">
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* Contextual Tooltip Helper for Respiration */}
+                  <div className="p-2 rounded-lg bg-slate-950/50 border border-slate-800/80 text-[11px] text-slate-400 leading-tight flex items-start gap-1.5">
+                    <Info className="w-3.5 h-3.5 text-brand-400 shrink-0 mt-0.5" />
+                    <span>
+                      {formData.respirationCategory === 'very_low' && 'Very low: processed foods, dry goods, chips, powders.'}
+                      {formData.respirationCategory === 'low' && 'Low: onions, garlic, potatoes, mature pumpkins.'}
+                      {formData.respirationCategory === 'medium' && 'Medium: fresh tomatoes, bell peppers, carrots, mangoes.'}
+                      {formData.respirationCategory === 'high' && 'High: bananas, strawberries, avocados, cut fruits.'}
+                      {formData.respirationCategory === 'very_high' && 'Very high: spinach, mushrooms, asparagus, leafy greens.'}
+                      {formData.respirationCategory === 'i_dont_know' && "I don't know: PackWise applies a safe standard non-respiring profile."}
+                    </span>
+                  </div>
                 </div>
               </div>
             </Card>

@@ -49,43 +49,50 @@ def cost_level_to_class(cost_level: str) -> str:
     return "medium"
 
 
-# Qualitative category mapping dictionaries for Simple Mode
+# Qualitative category mapping dictionaries for Phase 6 category-based inputs
 MOISTURE_CATEGORY_MAP: Dict[str, float] = {
-    "low": 2.0,           # Dry crisp foods (chips, biscuits, crackers)
-    "dry": 2.0,
-    "medium": 14.0,       # Grains, flour, powders, semi-dry
+    "very_dry": 2.5,       # 0–10% (e.g., Potato chips, Biscuits, Milk powder, dry snacks)
+    "low": 2.5,
+    "dry": 14.0,           # 10–30% (e.g., Wheat flour, Rice, Grains, dried foods)
     "semi_dry": 14.0,
-    "high": 65.0,         # High moisture / dairy (paneer, cheese)
-    "semi_moist": 65.0,
-    "very_high": 92.0,    # Fresh fruits & vegetables
-    "fresh": 92.0,
+    "medium": 14.0,
+    "moist": 55.0,         # 30–70% (e.g., Paneer, fresh cottage cheese, bakery with fillings)
+    "semi_moist": 55.0,
+    "high": 65.0,
+    "very_moist": 88.0,    # 70–100% (e.g., Fresh tomatoes, Leafy greens, Bananas, fresh fruit)
+    "very_high": 90.0,
+    "fresh": 90.0,
 }
 
 PH_CATEGORY_MAP: Dict[str, float] = {
-    "acidic": 4.2,        # Tomato, citrus, fruit pickles (high acid)
+    "acidic": 4.2,         # 3.0–4.6 (e.g., Tomato, citrus fruits, berries, fruit products)
     "high_acid": 4.2,
-    "low_acid": 5.5,      # Vegetables, mild foods
-    "neutral": 6.8,       # Milk, paneer, grains, pulses
-    "alkaline": 8.0,      # Alkaline processed foods
+    "low_acid": 5.5,       # 4.7–5.5 (e.g., mild vegetables)
+    "neutral": 6.5,        # 4.7–7.0 (e.g., Milk, paneer, most vegetables, grains, pulses)
+    "alkaline": 7.8,       # 7.1–8.5 (e.g., alkaline processed foods)
 }
 
 OIL_FAT_CATEGORY_MAP: Dict[str, str] = {
-    "none": "low",        # Fresh produce (<1%)
-    "low": "low",         # Grains, pulses (1-5%)
-    "medium": "medium",   # Baked goods, semi-fat (5-20%)
+    "very_low": "low",     # <1% (e.g., fresh produce, fruits, vegetables)
+    "none": "low",
+    "low": "low",          # 1–5% (e.g., grains, pulses, low-fat dairy)
+    "medium": "medium",    # 5–20% (e.g., baked goods, moderate-fat foods)
     "moderate": "medium",
-    "high": "high",       # Fried chips, nuts (>20%)
-    "very_high": "high",
+    "high": "high",        # >20% (e.g., fried chips, namkeen, roasted nuts)
+    "very_high": "very_high", # >35% lipid content
 }
 
 RESPIRATION_CATEGORY_MAP: Dict[str, str] = {
-    "none": "very_low",   # Non-respiring / processed
+    "very_low": "very_low", # Non-respiring / processed foods, dry goods
+    "none": "very_low",
     "zero": "very_low",
-    "low": "low",         # Onions, potatoes
-    "medium": "medium",   # Tomato, mango
+    "low": "low",          # Onions, potatoes
+    "medium": "medium",    # Tomato, mango
     "moderate": "medium",
-    "high": "high",       # Banana, berries
-    "very_high": "very_high", # Spinach, mushrooms
+    "high": "high",        # Banana, berries
+    "very_high": "very_high", # Spinach, mushrooms, leafy greens
+    "i_dont_know": "very_low",
+    "dont_know": "very_low",
 }
 
 SHELF_LIFE_CATEGORY_MAP: Dict[str, int] = {
