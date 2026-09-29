@@ -17,7 +17,16 @@ import {
   Sliders,
   Check,
   Search,
-  ChevronRight
+  ChevronRight,
+  ChevronLeft,
+  ArrowRight,
+  ArrowLeft,
+  FileText,
+  FlaskConical,
+  Database,
+  Edit3,
+  ShieldCheck,
+  Award
 } from 'lucide-react';
 import Button from '../components/common/Button';
 import Card from '../components/common/Card';
@@ -59,7 +68,8 @@ const SIMPLE_SUSTAINABILITY_OPTIONS = [
 const INITIAL_FORM_STATE = {
   commodityName: 'Tomato',
   category: 'Fresh Produce',
-  // Phase 6 Category Fields + Exact Mode flags
+  hasLabData: false, // Step 4 decision: false = simple/farmer mode with DB defaults, true = advanced mode
+  // Category Fields + Exact Mode flags (for Step 5)
   moistureCategory: 'very_moist', // 'very_dry' | 'dry' | 'moist' | 'very_moist' | 'exact'
   moisture: '94.0',
   oilFatCategory: 'very_low', // 'very_low' | 'low' | 'medium' | 'high' | 'very_high' | 'exact'
@@ -83,15 +93,13 @@ const INITIAL_FORM_STATE = {
 
 export default function RecommendPage() {
   const navigate = useNavigate();
-  const [isSimpleMode, setIsSimpleMode] = useState(true);
-  const [useTypicalValues, setUseTypicalValues] = useState(true);
+  const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState(INITIAL_FORM_STATE);
   const [errors, setErrors] = useState({});
   const [apiError, setApiError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedPresetId, setSelectedPresetId] = useState('tomato');
-  const [statusMessage, setStatusMessage] = useState('Selected: Tomato (Chill-sensitive produce requiring breathable film)');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [statusMessage, setStatusMessage] = useState('Loaded: Tomato preset defaults');
   const [dbCommodities, setDbCommodities] = useState(PRESET_COMMODITIES);
 
   // Load database commodities on mount
@@ -99,7 +107,6 @@ export default function RecommendPage() {
     async function loadComms() {
       const comms = await fetchCommodities();
       if (comms && comms.length > 0) {
-        // Merge with preset descriptions
         setDbCommodities(comms);
       }
     }
@@ -167,7 +174,8 @@ export default function RecommendPage() {
     else if (rawResp === 'high') rCat = 'high';
     else if (rawResp === 'very_high') rCat = 'very_high';
 
-    setFormData({
+    setFormData((prev) => ({
+      ...prev,
       commodityName: preset.name,
       category: preset.category || 'Other / Custom',
       moistureCategory: mCat,
@@ -190,26 +198,24 @@ export default function RecommendPage() {
       packagingFormat: preset.packagingFormat || 'Pillow Pouch',
       shelfLifeCategory: (preset.base_shelf_life_days ?? preset.shelfLifeDays ?? 30) <= 7 ? 'short' : ((preset.base_shelf_life_days ?? preset.shelfLifeDays ?? 30) <= 30 ? 'medium' : 'long'),
       transportCategory: 'local',
-    });
+    }));
     setErrors({});
     setApiError(null);
     setStatusMessage(`Loaded: ${preset.name} (${preset.notes || preset.note || preset.category})`);
   };
 
-  const validateForm = () => {
+  const validateStep = (stepNumber) => {
     const newErrors = {};
 
-    // Commodity Name (required in both modes)
-    if (!formData.commodityName.trim()) {
-      newErrors.commodityName = 'Commodity name is required.';
-    }
-
-    // In Advanced Mode, validate numeric scientific fields if exact mode selected
-    if (!isSimpleMode) {
+    if (stepNumber === 1) {
+      if (!formData.commodityName.trim()) {
+        newErrors.commodityName = 'Please enter or select a commodity name.';
+      }
+    } else if (stepNumber === 5 && formData.hasLabData) {
       if (formData.moistureCategory === 'exact') {
         const moistureNum = parseFloat(formData.moisture);
         if (isNaN(moistureNum) || moistureNum < 0 || moistureNum > 100) {
-          newErrors.moisture = 'Moisture content must be a percentage between 0 and 100.';
+          newErrors.moisture = 'Moisture percentage must be between 0 and 100.';
         }
       }
 
@@ -219,55 +225,66 @@ export default function RecommendPage() {
           newErrors.pH = 'pH value must be between 0.0 and 14.0.';
         }
       }
-
-      const rhNum = parseFloat(formData.relativeHumidity);
-      if (isNaN(rhNum) || rhNum < 0 || rhNum > 100) {
-        newErrors.relativeHumidity = 'Relative humidity must be between 0% and 100%.';
-      }
-
-      const shelfLifeNum = parseInt(formData.shelfLifeDays, 10);
-      if (isNaN(shelfLifeNum) || shelfLifeNum <= 0) {
-        newErrors.shelfLifeDays = 'Target shelf life must be a positive number greater than 0.';
-      }
-
-      const tempNum = parseFloat(formData.storageTemp);
-      if (isNaN(tempNum)) {
-        newErrors.storageTemp = 'Storage temperature must be a valid numeric value.';
-      }
-
-      const transportNum = parseInt(formData.transportDays, 10);
-      if (isNaN(transportNum) || transportNum < 0) {
-        newErrors.transportDays = 'Transportation days must be 0 or higher.';
-      }
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setApiError(null);
-
-    if (!validateForm()) {
-      window.scrollTo({ top: 150, behavior: 'smooth' });
+  const goToNextStep = () => {
+    if (!validateStep(currentStep)) {
       return;
     }
+
+    if (currentStep === 4) {
+      // If user has NO lab data (Farmer mode) -> skip Step 5 and jump directly to Step 6 (Review & Submit)
+      if (!formData.hasLabData) {
+        setCurrentStep(6);
+      } else {
+        setCurrentStep(5);
+      }
+    } else if (currentStep < 6) {
+      setCurrentStep((prev) => prev + 1);
+    }
+    window.scrollTo({ top: 100, behavior: 'smooth' });
+  };
+
+  const goToPrevStep = () => {
+    if (currentStep === 6 && !formData.hasLabData) {
+      setCurrentStep(4);
+    } else if (currentStep > 1) {
+      setCurrentStep((prev) => prev - 1);
+    }
+    window.scrollTo({ top: 100, behavior: 'smooth' });
+  };
+
+  const jumpToStep = (stepNumber) => {
+    if (stepNumber === 5 && !formData.hasLabData) {
+      setFormData((prev) => ({ ...prev, hasLabData: true }));
+    }
+    setCurrentStep(stepNumber);
+    window.scrollTo({ top: 100, behavior: 'smooth' });
+  };
+
+  const handleSubmit = async (e) => {
+    if (e) e.preventDefault();
+    setApiError(null);
 
     setIsSubmitting(true);
 
     try {
+      const isSimple = !formData.hasLabData;
       const submitPayload = {
         ...formData,
-        isSimpleMode,
-        simple_mode: isSimpleMode,
-        use_defaults: isSimpleMode ? useTypicalValues : false,
+        isSimpleMode: isSimple,
+        simple_mode: isSimple,
+        use_defaults: isSimple,
       };
 
-      // Call live FastAPI recommendation engine
+      // Call FastAPI recommendation engine
       const recommendationResponse = await generateRecommendation(submitPayload);
 
-      // Save locally to sessionStorage and navigate
+      // Save locally to sessionStorage
       try {
         sessionStorage.setItem('packwise_recommendation_input', JSON.stringify(submitPayload));
         sessionStorage.setItem('packwise_recommendation_result', JSON.stringify(recommendationResponse));
@@ -284,7 +301,7 @@ export default function RecommendPage() {
     } catch (err) {
       console.error('Recommendation API error:', err);
       setApiError(err.message || 'Failed to connect to recommendation backend. Please verify server status.');
-      window.scrollTo({ top: 150, behavior: 'smooth' });
+      window.scrollTo({ top: 100, behavior: 'smooth' });
     } finally {
       setIsSubmitting(false);
     }
@@ -292,154 +309,108 @@ export default function RecommendPage() {
 
   const resetForm = () => {
     setFormData(INITIAL_FORM_STATE);
+    setCurrentStep(1);
     setErrors({});
     setApiError(null);
     setSelectedPresetId('tomato');
     setStatusMessage('Form reset to default.');
+    window.scrollTo({ top: 100, behavior: 'smooth' });
   };
 
-  // Filtered commodities for search dropdown
-  const filteredCommodities = dbCommodities.filter((c) =>
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (c.category && c.category.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  // Stepper definition
+  const WIZARD_STEPS = [
+    { number: 1, title: 'Product Basics', shortTitle: 'Product', icon: Package },
+    { number: 2, title: 'Storage & Shelf Life', shortTitle: 'Storage', icon: Thermometer },
+    { number: 3, title: 'Transport & Eco Goal', shortTitle: 'Transport', icon: Truck },
+    { number: 4, title: 'Data Availability', shortTitle: 'Data Check', icon: Database },
+    ...(formData.hasLabData ? [{ number: 5, title: 'Advanced Lab Data', shortTitle: 'Lab Metrics', icon: FlaskConical }] : []),
+    { number: 6, title: 'Review & Submit', shortTitle: 'Review', icon: CheckCircle },
+  ];
+
+  const totalSteps = formData.hasLabData ? 6 : 5;
+  const displayStepNumber = !formData.hasLabData && currentStep === 6 ? 5 : currentStep;
+  const progressPercent = Math.round((displayStepNumber / totalSteps) * 100);
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
       {/* Page Header */}
-      <div className="space-y-3">
+      <div className="space-y-2">
         <div className="flex items-center gap-2">
-          <Badge variant="brand" size="md">Phase 5 Intelligent Packaging</Badge>
-          <span className="text-xs text-slate-400">Step 1 of Decision Pipeline</span>
+          <Badge variant="brand" size="md">Phase 7 Guided Wizard</Badge>
+          <span className="text-xs text-slate-400">Step-by-Step Food Packaging Intelligence</span>
         </div>
         <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-          Food Packaging Recommendation Form
+          Food Packaging Recommendation Wizard
         </h1>
         <p className="text-slate-300 text-sm sm:text-base max-w-3xl">
-          Get scientifically calibrated packaging material and barrier recommendations (OTR/WVTR, breathable film, MAP) tailored to your food product.
+          Follow our 6-step guided assistant to configure food preservation, storage, transport, and barrier requirements.
         </p>
       </div>
 
-      {/* Mode Switcher Toggle: Simple Mode vs Advanced Mode */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Simple Mode Toggle Card */}
-        <button
-          type="button"
-          onClick={() => setIsSimpleMode(true)}
-          className={`p-5 rounded-2xl border text-left transition-all relative ${
-            isSimpleMode
-              ? 'bg-gradient-to-br from-emerald-950/70 to-slate-900 border-emerald-500/60 ring-2 ring-emerald-500/40 shadow-lg shadow-emerald-950/50'
-              : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div
-                className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold ${
-                  isSimpleMode
-                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                    : 'bg-slate-800 text-slate-400'
-                }`}
-              >
-                <Leaf className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className={`text-base font-bold ${isSimpleMode ? 'text-white' : 'text-slate-200'}`}>
-                    Simple mode
-                  </h3>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    Recommended for farmers / small units
+      {/* Wizard Progress & Stepper Bar */}
+      <Card className="p-4 sm:p-6 bg-slate-900/90 border-slate-800">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between text-xs font-semibold">
+            <span className="text-brand-300 flex items-center gap-1.5 font-bold">
+              <Sparkles className="w-4 h-4 text-brand-400" />
+              Step {displayStepNumber} of {totalSteps}: {WIZARD_STEPS.find(s => s.number === currentStep)?.title || 'Review & Submit'}
+            </span>
+            <span className="text-slate-400 font-mono">{progressPercent}% Complete</span>
+          </div>
+
+          {/* Progress track */}
+          <div className="w-full bg-slate-800/80 rounded-full h-2 overflow-hidden">
+            <div
+              className="bg-gradient-to-r from-brand-500 via-teal-400 to-emerald-400 h-2 rounded-full transition-all duration-300 ease-out"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+
+          {/* Stepper Steps (Clickable for quick navigation) */}
+          <div className="grid grid-cols-5 sm:grid-cols-6 gap-1 pt-2">
+            {[1, 2, 3, 4, 5, 6].filter(num => num !== 5 || formData.hasLabData).map((stepNum, idx) => {
+              const isActive = currentStep === stepNum;
+              const isPast = currentStep > stepNum;
+              const stepObj = WIZARD_STEPS.find(s => s.number === stepNum);
+              const IconComp = stepObj?.icon || CheckCircle;
+
+              return (
+                <button
+                  key={stepNum}
+                  type="button"
+                  onClick={() => jumpToStep(stepNum)}
+                  className={`p-2 rounded-xl text-center transition-all flex flex-col items-center gap-1 ${
+                    isActive
+                      ? 'bg-brand-500/20 border border-brand-500/40 text-brand-300 shadow-md shadow-brand-500/10'
+                      : isPast
+                      ? 'bg-slate-950/60 border border-slate-800 text-emerald-400 hover:border-slate-700'
+                      : 'bg-slate-950/30 border border-slate-900 text-slate-500 hover:text-slate-400'
+                  }`}
+                >
+                  <div
+                    className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                      isActive
+                        ? 'bg-brand-500 text-slate-950 font-extrabold'
+                        : isPast
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                        : 'bg-slate-800 text-slate-400'
+                    }`}
+                  >
+                    {isPast ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : idx + 1}
+                  </div>
+                  <span className="text-[10px] font-semibold truncate hidden sm:inline">
+                    {stepObj?.shortTitle}
                   </span>
-                </div>
-                <p className="text-xs text-slate-400 mt-1">
-                  Simple mode – uses typical values for your product.
-                </p>
-              </div>
-            </div>
-            {isSimpleMode && <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-1" />}
+                </button>
+              );
+            })}
           </div>
-        </button>
-
-        {/* Advanced Mode Toggle Card */}
-        <button
-          type="button"
-          onClick={() => setIsSimpleMode(false)}
-          className={`p-5 rounded-2xl border text-left transition-all relative ${
-            !isSimpleMode
-              ? 'bg-gradient-to-br from-indigo-950/70 to-slate-900 border-indigo-500/60 ring-2 ring-indigo-500/40 shadow-lg shadow-indigo-950/50'
-              : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div
-                className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold ${
-                  !isSimpleMode
-                    ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/40'
-                    : 'bg-slate-800 text-slate-400'
-                }`}
-              >
-                <Sliders className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className={`text-base font-bold ${!isSimpleMode ? 'text-white' : 'text-slate-200'}`}>
-                    Advanced mode
-                  </h3>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                    Lab Data & QA
-                  </span>
-                </div>
-                <p className="text-xs text-slate-400 mt-1">
-                  Advanced mode – use if you have lab data or specific requirements.
-                </p>
-              </div>
-            </div>
-            {!isSimpleMode && <CheckCircle className="w-5 h-5 text-indigo-400 shrink-0 mt-1" />}
-          </div>
-        </button>
-      </div>
-
-      {/* Preset Commodity Quick Selectors */}
-      <Card className="p-6 border-slate-800 bg-slate-900/80">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-white">
-            <Zap className="w-4 h-4 text-brand-400" />
-            <span>Quick-Load Preset Commodity Profile</span>
-          </div>
-          <span className="text-xs text-slate-400">Click a preset to populate commodity details automatically:</span>
         </div>
-
-        <div className="flex flex-wrap gap-2">
-          {PRESET_COMMODITIES.map((preset) => (
-            <button
-              key={preset.id}
-              type="button"
-              onClick={() => loadPreset(preset)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5 ${
-                selectedPresetId === preset.id
-                  ? 'bg-brand-500 text-slate-950 font-bold shadow-md shadow-brand-500/30 ring-2 ring-brand-400'
-                  : 'bg-slate-800/80 text-slate-300 hover:text-white hover:bg-slate-700 border border-slate-700'
-              }`}
-            >
-              <span>{preset.name}</span>
-              <span className="text-[10px] opacity-75">({preset.category})</span>
-            </button>
-          ))}
-        </div>
-
-        {statusMessage && (
-          <div className="mt-3.5 p-2.5 rounded-lg bg-slate-950/70 border border-slate-800 text-xs text-brand-300 flex items-center gap-2">
-            <Info className="w-3.5 h-3.5 text-brand-400 shrink-0" />
-            <span>{statusMessage}</span>
-          </div>
-        )}
       </Card>
 
       {/* API / Network Error Alert */}
       {apiError && (
-        <div className="p-5 rounded-2xl bg-rose-950/40 border border-rose-500/40 shadow-lg shadow-rose-950/50 flex items-start gap-4">
+        <div className="p-5 rounded-2xl bg-rose-950/40 border border-rose-500/40 shadow-lg shadow-rose-950/50 flex items-start gap-4 animate-in fade-in duration-300">
           <div className="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0 mt-0.5">
             <AlertCircle className="w-5 h-5" />
           </div>
@@ -454,788 +425,815 @@ export default function RecommendPage() {
         </div>
       )}
 
-      {/* Main Input Form */}
-      <form onSubmit={handleSubmit} noValidate className="space-y-8">
-        {/* ====================================================================== */}
-        {/* SIMPLE MODE FORM (For Farmers / Small Units / Non-Technical Users)       */}
-        {/* ====================================================================== */}
-        {isSimpleMode ? (
-          <div className="space-y-6">
-            {/* Commodity Selection & Typical Values Option */}
-            <Card className="p-6 sm:p-8 space-y-6 border-emerald-500/30">
-              <div className="flex items-center gap-3 pb-4 border-b border-slate-800">
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold text-xs">
-                  01
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-white">Select Your Product</h2>
-                  <p className="text-xs text-slate-400">Choose or enter your food commodity.</p>
-                </div>
+      {/* ====================================================================== */}
+      {/* WIZARD STEP CONTAINER                                                  */}
+      {/* ====================================================================== */}
+      <Card className="p-6 sm:p-8 space-y-6 border-slate-800 bg-slate-900/90 shadow-xl relative">
+        {/* ==================================================================== */}
+        {/* STEP 1: PRODUCT BASICS                                               */}
+        {/* ==================================================================== */}
+        {currentStep === 1 && (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            <div className="flex items-center gap-3 pb-4 border-b border-slate-800">
+              <div className="w-10 h-10 rounded-xl bg-brand-500/15 border border-brand-500/30 flex items-center justify-center text-brand-400 font-bold text-sm">
+                01
               </div>
-
-              <div className="space-y-5">
-                {/* Commodity Dropdown / Search */}
-                <div className="space-y-2">
-                  <label htmlFor="simpleCommodity" className="block text-xs font-semibold text-slate-200">
-                    Commodity <span className="text-rose-400">*</span>
-                  </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <select
-                      id="simpleCommodity"
-                      value={formData.commodityName}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        const match = dbCommodities.find(
-                          (c) => c.name.toLowerCase() === val.toLowerCase()
-                        );
-                        if (match) {
-                          loadPreset(match);
-                        } else {
-                          setFormData((prev) => ({ ...prev, commodityName: val }));
-                        }
-                      }}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/80 border border-slate-700 text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
-                    >
-                      <option value="">-- Choose known commodity --</option>
-                      {dbCommodities.map((c) => (
-                        <option key={c.id || c.name} value={c.name}>
-                          {c.name} ({c.category})
-                        </option>
-                      ))}
-                    </select>
-
-                    <input
-                      type="text"
-                      name="commodityName"
-                      value={formData.commodityName}
-                      onChange={handleChange}
-                      placeholder="Or type custom product (e.g. Guava, Paneer, Chips)"
-                      className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950/80 border text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 transition-all ${
-                        errors.commodityName
-                          ? 'border-rose-500 focus:ring-rose-500/30'
-                          : 'border-slate-700 focus:border-brand-500 focus:ring-brand-500/20'
-                      }`}
-                    />
-                  </div>
-                  {errors.commodityName && (
-                    <p className="text-xs text-rose-400 flex items-center gap-1 mt-1">
-                      <AlertCircle className="w-3 h-3 shrink-0" />
-                      {errors.commodityName}
-                    </p>
-                  )}
-                </div>
-
-                {/* "Use typical values for this commodity" Checkbox */}
-                <div className="p-4 rounded-xl bg-emerald-950/30 border border-emerald-500/30 flex items-start gap-3">
-                  <input
-                    id="useTypicalValues"
-                    name="useTypicalValues"
-                    type="checkbox"
-                    checked={useTypicalValues}
-                    onChange={(e) => setUseTypicalValues(e.target.checked)}
-                    className="w-4 h-4 mt-0.5 rounded border-slate-700 text-emerald-500 focus:ring-emerald-500/30 bg-slate-900 cursor-pointer"
-                  />
-                  <div className="space-y-1 cursor-pointer" onClick={() => setUseTypicalValues(!useTypicalValues)}>
-                    <label htmlFor="useTypicalValues" className="text-xs font-bold text-emerald-300 block cursor-pointer">
-                      Use typical values for this commodity (recommended)
-                    </label>
-                    <p className="text-[11px] text-slate-300 leading-relaxed">
-                      PackWise AI automatically loads standard moisture %, respiration class, fat levels, and pH from our food science database. You don't need lab measurements.
-                    </p>
-                  </div>
-                </div>
+              <div>
+                <h2 className="text-xl font-bold text-white">Step 1: Product Basics</h2>
+                <p className="text-xs text-slate-400">Choose or type your food commodity to start recommendation analysis.</p>
               </div>
-            </Card>
+            </div>
 
-            {/* Storage Type */}
-            <Card className="p-6 sm:p-8 space-y-6">
-              <div className="flex items-center gap-3 pb-4 border-b border-slate-800">
-                <div className="w-8 h-8 rounded-lg bg-teal-500/15 border border-teal-500/30 flex items-center justify-center text-teal-400 font-bold text-xs">
-                  02
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-white">Storage & Handling Conditions</h2>
-                  <p className="text-xs text-slate-400">Choose storage regime and expected shelf life.</p>
-                </div>
-              </div>
-
-              <div className="space-y-6">
-                {/* Storage Type Radio Cards */}
-                <div className="space-y-2">
-                  <label className="block text-xs font-semibold text-slate-200">
-                    Storage Type <span className="text-rose-400">*</span>
-                  </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {[
-                      { id: 'ambient', label: 'Ambient', sub: 'Room temperature (~15–25°C)', icon: Thermometer },
-                      { id: 'chilled', label: 'Chilled', sub: 'Cold room / Refrigerator (0–4°C)', icon: Droplets },
-                      { id: 'frozen', label: 'Frozen', sub: 'Deep freezer (-18°C or below)', icon: Package },
-                    ].map((st) => (
-                      <button
-                        key={st.id}
-                        type="button"
-                        onClick={() => setFormData((prev) => ({ ...prev, storageType: st.id }))}
-                        className={`p-4 rounded-xl border text-left transition-all ${
-                          formData.storageType === st.id
-                            ? 'bg-brand-500/15 border-brand-500 text-white ring-2 ring-brand-500/40'
-                            : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
-                        }`}
-                      >
-                        <div className="font-semibold text-sm text-white flex items-center justify-between">
-                          <span>{st.label}</span>
-                          {formData.storageType === st.id && <Check className="w-4 h-4 text-brand-400" />}
-                        </div>
-                        <div className="text-xs text-slate-400 mt-1">{st.sub}</div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Desired Shelf Life Category */}
-                <div className="space-y-2">
-                  <label className="block text-xs font-semibold text-slate-200">
-                    Desired Shelf Life Category
-                  </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {SIMPLE_SHELF_LIFE_OPTIONS.map((opt) => (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => setFormData((prev) => ({ ...prev, shelfLifeCategory: opt.id }))}
-                        className={`p-4 rounded-xl border text-left transition-all ${
-                          formData.shelfLifeCategory === opt.id
-                            ? 'bg-brand-500/15 border-brand-500 text-white ring-2 ring-brand-500/40'
-                            : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
-                        }`}
-                      >
-                        <div className="font-semibold text-sm text-white flex items-center justify-between">
-                          <span>{opt.label}</span>
-                          {formData.shelfLifeCategory === opt.id && <Check className="w-4 h-4 text-brand-400" />}
-                        </div>
-                        <div className="text-xs text-slate-400 mt-1">{opt.description}</div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </Card>
-
-            {/* Distribution & Sustainability */}
-            <Card className="p-6 sm:p-8 space-y-6">
-              <div className="flex items-center gap-3 pb-4 border-b border-slate-800">
-                <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 font-bold text-xs">
-                  03
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-white">Transport & Sustainability</h2>
-                  <p className="text-xs text-slate-400">Transit scale and eco-packaging preference.</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                {/* Transport Distance */}
-                <div className="space-y-2">
-                  <label className="block text-xs font-semibold text-slate-200">
-                    Transport Distance
-                  </label>
-                  <div className="space-y-2">
-                    {SIMPLE_TRANSPORT_OPTIONS.map((opt) => (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => setFormData((prev) => ({ ...prev, transportCategory: opt.id }))}
-                        className={`w-full p-3.5 rounded-xl border text-left transition-all flex items-start justify-between ${
-                          formData.transportCategory === opt.id
-                            ? 'bg-brand-500/15 border-brand-500 text-white ring-2 ring-brand-500/40'
-                            : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
-                        }`}
-                      >
-                        <div>
-                          <div className="font-semibold text-sm text-white">{opt.label}</div>
-                          <div className="text-xs text-slate-400 mt-0.5">{opt.description}</div>
-                        </div>
-                        {formData.transportCategory === opt.id && <Check className="w-4 h-4 text-brand-400 mt-0.5 shrink-0" />}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Sustainability Preference */}
-                <div className="space-y-2">
-                  <label className="block text-xs font-semibold text-slate-200">
-                    Sustainability Preference (Optional)
-                  </label>
-                  <div className="space-y-2">
-                    {SIMPLE_SUSTAINABILITY_OPTIONS.map((opt) => (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => setFormData((prev) => ({ ...prev, sustainabilityPreference: opt.id }))}
-                        className={`w-full p-3.5 rounded-xl border text-left transition-all flex items-start justify-between ${
-                          formData.sustainabilityPreference === opt.id
-                            ? 'bg-brand-500/15 border-brand-500 text-white ring-2 ring-brand-500/40'
-                            : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
-                        }`}
-                      >
-                        <div>
-                          <div className="font-semibold text-sm text-white">{opt.label}</div>
-                          <div className="text-xs text-slate-400 mt-0.5">{opt.description}</div>
-                        </div>
-                        {formData.sustainabilityPreference === opt.id && <Check className="w-4 h-4 text-brand-400 mt-0.5 shrink-0" />}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </Card>
-          </div>
-        ) : (
-          /* ====================================================================== */
-          /* ADVANCED MODE FORM (For Packaging Engineers / QA Lab Data)             */
-          /* ====================================================================== */
-          <div className="space-y-8">
-            {/* Section 1: Food Chemistry & Physicochemical Properties */}
-            <Card className="p-6 sm:p-8 space-y-6">
-              <div className="flex items-center gap-3 pb-4 border-b border-slate-800">
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold text-xs">
-                  01
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-white">Food Commodity Characteristics (Lab Data)</h2>
-                  <p className="text-xs text-slate-400">Specify precise chemical composition and physiological metrics.</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {/* Commodity Name */}
-                <div className="space-y-1.5">
-                  <label htmlFor="commodityName" className="block text-xs font-semibold text-slate-200">
-                    Commodity Name <span className="text-rose-400">*</span>
-                  </label>
-                  <input
-                    id="commodityName"
-                    name="commodityName"
-                    type="text"
-                    value={formData.commodityName}
-                    onChange={handleChange}
-                    placeholder="e.g., Banana, Potato chips, Paneer"
-                    className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 transition-all ${
-                      errors.commodityName
-                        ? 'border-rose-500 focus:ring-rose-500/30'
-                        : 'border-slate-800 focus:border-brand-500 focus:ring-brand-500/20'
+            {/* Quick Presets */}
+            <div className="space-y-2.5">
+              <label className="block text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                <Zap className="w-3.5 h-3.5 text-brand-400" />
+                <span>Quick Preset Commodity Profiles:</span>
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {PRESET_COMMODITIES.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => loadPreset(preset)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5 ${
+                      selectedPresetId === preset.id
+                        ? 'bg-brand-500 text-slate-950 font-bold shadow-md shadow-brand-500/30 ring-2 ring-brand-400'
+                        : 'bg-slate-950/70 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-800'
                     }`}
-                  />
-                  {errors.commodityName && (
-                    <p className="text-xs text-rose-400 flex items-center gap-1 mt-1">
-                      <AlertCircle className="w-3 h-3 shrink-0" />
-                      {errors.commodityName}
-                    </p>
-                  )}
-                </div>
-
-                {/* Category */}
-                <div className="space-y-1.5">
-                  <label htmlFor="category" className="block text-xs font-semibold text-slate-200">
-                    Food Category <span className="text-rose-400">*</span>
-                  </label>
-                  <select
-                    id="category"
-                    name="category"
-                    value={formData.category}
-                    onChange={handleChange}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
                   >
-                    {COMMODITY_CATEGORIES.map((cat) => (
-                      <option key={cat} value={cat} className="bg-slate-900 text-white">
-                        {cat}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Moisture Content (Category Dropdown + Optional Exact %) */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label htmlFor="moistureCategory" className="block text-xs font-semibold text-slate-200">
-                      Moisture Content <span className="text-rose-400">*</span>
-                    </label>
-                    <span className="text-[11px] text-brand-400">Category or Exact %</span>
-                  </div>
-                  <select
-                    id="moistureCategory"
-                    name="moistureCategory"
-                    value={formData.moistureCategory}
-                    onChange={handleChange}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
-                  >
-                    {MOISTURE_CATEGORY_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value} className="bg-slate-900 text-white">
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-
-                  {/* If "I know the exact %" is selected, show numeric input */}
-                  {formData.moistureCategory === 'exact' ? (
-                    <div className="pt-1.5 space-y-1">
-                      <div className="flex items-center justify-between">
-                        <label htmlFor="moisture" className="text-[11px] font-medium text-slate-300">
-                          Exact Moisture Percentage (%) <span className="text-rose-400">*</span>
-                        </label>
-                        <span className="text-[10px] text-slate-400">0 – 100%</span>
-                      </div>
-                      <input
-                        id="moisture"
-                        name="moisture"
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        max="100"
-                        value={formData.moisture}
-                        onChange={handleChange}
-                        placeholder="e.g., 94.0"
-                        className={`w-full px-3 py-2 rounded-lg bg-slate-900 border text-xs text-white focus:outline-none focus:ring-2 transition-all ${
-                          errors.moisture
-                            ? 'border-rose-500 focus:ring-rose-500/30'
-                            : 'border-slate-700 focus:border-brand-500 focus:ring-brand-500/20'
-                        }`}
-                      />
-                      {errors.moisture && (
-                        <p className="text-[11px] text-rose-400 flex items-center gap-1">
-                          <AlertCircle className="w-3 h-3 shrink-0" />
-                          {errors.moisture}
-                        </p>
-                      )}
-                    </div>
-                  ) : (
-                    /* Contextual Tooltip Helper for Moisture */
-                    <div className="p-2 rounded-lg bg-slate-950/50 border border-slate-800/80 text-[11px] text-slate-400 leading-tight flex items-start gap-1.5">
-                      <Info className="w-3.5 h-3.5 text-brand-400 shrink-0 mt-0.5" />
-                      <span>
-                        {formData.moistureCategory === 'very_dry' && 'Very dry: chips, biscuits, milk powder, dry snacks.'}
-                        {formData.moistureCategory === 'dry' && 'Dry: wheat flour, rice, pulses, dry grains, dried foods.'}
-                        {formData.moistureCategory === 'moist' && 'Moist: fresh paneer, cheese, bakery with fillings.'}
-                        {formData.moistureCategory === 'very_moist' && 'Very moist: leafy vegetables, fresh fruits, vine tomatoes.'}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Oil / Fat Level (Category Dropdown + Optional Exact Level) */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label htmlFor="oilFatCategory" className="block text-xs font-semibold text-slate-200">
-                      Oil & Fat Level (Oxidation Risk)
-                    </label>
-                    <span className="text-[11px] text-brand-400">Category or Exact</span>
-                  </div>
-                  <select
-                    id="oilFatCategory"
-                    name="oilFatCategory"
-                    value={formData.oilFatCategory}
-                    onChange={handleChange}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
-                  >
-                    {OIL_FAT_CATEGORY_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value} className="bg-slate-900 text-white">
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-
-                  {/* If "I know the exact level" is selected, show exact level dropdown */}
-                  {formData.oilFatCategory === 'exact' ? (
-                    <div className="pt-1.5 space-y-1">
-                      <label htmlFor="oilFatLevel" className="text-[11px] font-medium text-slate-300">
-                        Exact Lipid Content Tier
-                      </label>
-                      <select
-                        id="oilFatLevel"
-                        name="oilFatLevel"
-                        value={formData.oilFatLevel}
-                        onChange={handleChange}
-                        className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
-                      >
-                        {OIL_FAT_LEVELS.map((opt) => (
-                          <option key={opt.value} value={opt.value} className="bg-slate-900 text-white">
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  ) : (
-                    /* Contextual Tooltip Helper for Oil/Fat */
-                    <div className="p-2 rounded-lg bg-slate-950/50 border border-slate-800/80 text-[11px] text-slate-400 leading-tight flex items-start gap-1.5">
-                      <Info className="w-3.5 h-3.5 text-brand-400 shrink-0 mt-0.5" />
-                      <span>
-                        {formData.oilFatCategory === 'very_low' && 'Very low: most fresh produce, fruits, vegetables.'}
-                        {formData.oilFatCategory === 'low' && 'Low: grains, pulses, skimmed/low-fat dairy.'}
-                        {formData.oilFatCategory === 'medium' && 'Medium: baked goods, whole milk dairy, cookies.'}
-                        {formData.oilFatCategory === 'high' && 'High: potato chips, namkeen, roasted nuts.'}
-                        {formData.oilFatCategory === 'very_high' && 'Very high: butter, pure fats, oil-rich confectionery.'}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* pH Value (Category Dropdown + Optional Exact pH) */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label htmlFor="phCategory" className="block text-xs font-semibold text-slate-200">
-                      pH Level / Acidity <span className="text-rose-400">*</span>
-                    </label>
-                    <span className="text-[11px] text-brand-400">Category or Exact pH</span>
-                  </div>
-                  <select
-                    id="phCategory"
-                    name="phCategory"
-                    value={formData.phCategory}
-                    onChange={handleChange}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
-                  >
-                    {PH_CATEGORY_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value} className="bg-slate-900 text-white">
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-
-                  {/* If "I know the exact pH" is selected, show numeric input */}
-                  {formData.phCategory === 'exact' ? (
-                    <div className="pt-1.5 space-y-1">
-                      <div className="flex items-center justify-between">
-                        <label htmlFor="pH" className="text-[11px] font-medium text-slate-300">
-                          Exact pH Value <span className="text-rose-400">*</span>
-                        </label>
-                        <span className="text-[10px] text-slate-400">0.0 – 14.0</span>
-                      </div>
-                      <input
-                        id="pH"
-                        name="pH"
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        max="14"
-                        value={formData.pH}
-                        onChange={handleChange}
-                        placeholder="e.g., 4.3"
-                        className={`w-full px-3 py-2 rounded-lg bg-slate-900 border text-xs text-white focus:outline-none focus:ring-2 transition-all ${
-                          errors.pH
-                            ? 'border-rose-500 focus:ring-rose-500/30'
-                            : 'border-slate-700 focus:border-brand-500 focus:ring-brand-500/20'
-                        }`}
-                      />
-                      {errors.pH && (
-                        <p className="text-[11px] text-rose-400 flex items-center gap-1">
-                          <AlertCircle className="w-3 h-3 shrink-0" />
-                          {errors.pH}
-                        </p>
-                      )}
-                    </div>
-                  ) : (
-                    /* Contextual Tooltip Helper for pH */
-                    <div className="p-2 rounded-lg bg-slate-950/50 border border-slate-800/80 text-[11px] text-slate-400 leading-tight flex items-start gap-1.5">
-                      <Info className="w-3.5 h-3.5 text-brand-400 shrink-0 mt-0.5" />
-                      <span>
-                        {formData.phCategory === 'acidic' && 'Acidic: tomato, citrus fruits, berries, fruit juices.'}
-                        {formData.phCategory === 'neutral' && 'Neutral: milk, paneer, most vegetables, grains, pulses.'}
-                        {formData.phCategory === 'alkaline' && 'Alkaline: alkaline processed foods, ramen noodles.'}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Respiration Rate (Category Dropdown) */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label htmlFor="respirationCategory" className="block text-xs font-semibold text-slate-200">
-                      Respiration Rate (Produce Kinetics)
-                    </label>
-                    <span className="text-[11px] text-brand-400">Biological Rate</span>
-                  </div>
-                  <select
-                    id="respirationCategory"
-                    name="respirationCategory"
-                    value={formData.respirationCategory}
-                    onChange={handleChange}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
-                  >
-                    {RESPIRATION_CATEGORY_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value} className="bg-slate-900 text-white">
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-
-                  {/* Contextual Tooltip Helper for Respiration */}
-                  <div className="p-2 rounded-lg bg-slate-950/50 border border-slate-800/80 text-[11px] text-slate-400 leading-tight flex items-start gap-1.5">
-                    <Info className="w-3.5 h-3.5 text-brand-400 shrink-0 mt-0.5" />
-                    <span>
-                      {formData.respirationCategory === 'very_low' && 'Very low: processed foods, dry goods, chips, powders.'}
-                      {formData.respirationCategory === 'low' && 'Low: onions, garlic, potatoes, mature pumpkins.'}
-                      {formData.respirationCategory === 'medium' && 'Medium: fresh tomatoes, bell peppers, carrots, mangoes.'}
-                      {formData.respirationCategory === 'high' && 'High: bananas, strawberries, avocados, cut fruits.'}
-                      {formData.respirationCategory === 'very_high' && 'Very high: spinach, mushrooms, asparagus, leafy greens.'}
-                      {formData.respirationCategory === 'i_dont_know' && "I don't know: PackWise applies a safe standard non-respiring profile."}
-                    </span>
-                  </div>
-                </div>
+                    <span>{preset.name}</span>
+                    <span className="text-[10px] opacity-75">({preset.category})</span>
+                  </button>
+                ))}
               </div>
-            </Card>
-
-            {/* Section 2: Storage & Environmental Distribution */}
-            <Card className="p-6 sm:p-8 space-y-6">
-              <div className="flex items-center gap-3 pb-4 border-b border-slate-800">
-                <div className="w-8 h-8 rounded-lg bg-teal-500/15 border border-teal-500/30 flex items-center justify-center text-teal-400 font-bold text-xs">
-                  02
+              {statusMessage && (
+                <div className="p-2.5 rounded-lg bg-slate-950/70 border border-slate-800/80 text-xs text-brand-300 flex items-center gap-2">
+                  <Info className="w-3.5 h-3.5 text-brand-400 shrink-0" />
+                  <span>{statusMessage}</span>
                 </div>
-                <div>
-                  <h2 className="text-lg font-bold text-white">Storage & Shelf-Life Targets</h2>
-                  <p className="text-xs text-slate-400">Define storage temperature regimes, humidity, and distribution chain.</p>
-                </div>
-              </div>
+              )}
+            </div>
 
-              {/* Storage Type Quick Radio Tiles */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2">
+              {/* Commodity Dropdown & Custom Input */}
               <div className="space-y-2">
-                <label className="block text-xs font-semibold text-slate-200">Storage Regime</label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {STORAGE_TYPES.map((st) => (
+                <label htmlFor="commoditySelect" className="block text-xs font-semibold text-slate-200">
+                  Select Known Commodity <span className="text-rose-400">*</span>
+                </label>
+                <select
+                  id="commoditySelect"
+                  value={formData.commodityName}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const match = dbCommodities.find(
+                      (c) => c.name.toLowerCase() === val.toLowerCase()
+                    );
+                    if (match) {
+                      loadPreset(match);
+                    } else {
+                      setFormData((prev) => ({ ...prev, commodityName: val }));
+                    }
+                  }}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/80 border border-slate-700 text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+                >
+                  <option value="">-- Choose from database --</option>
+                  {dbCommodities.map((c) => (
+                    <option key={c.id || c.name} value={c.name}>
+                      {c.name} ({c.category})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Custom Commodity Name */}
+              <div className="space-y-2">
+                <label htmlFor="commodityName" className="block text-xs font-semibold text-slate-200">
+                  Or Custom Product Name <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  id="commodityName"
+                  name="commodityName"
+                  type="text"
+                  value={formData.commodityName}
+                  onChange={handleChange}
+                  placeholder="e.g. Guava, Paneer, Extruded Snack"
+                  className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950/80 border text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 transition-all ${
+                    errors.commodityName
+                      ? 'border-rose-500 focus:ring-rose-500/30'
+                      : 'border-slate-700 focus:border-brand-500 focus:ring-brand-500/20'
+                  }`}
+                />
+                {errors.commodityName && (
+                  <p className="text-xs text-rose-400 flex items-center gap-1 mt-1">
+                    <AlertCircle className="w-3 h-3 shrink-0" />
+                    {errors.commodityName}
+                  </p>
+                )}
+              </div>
+
+              {/* Product Type / Commodity Category */}
+              <div className="space-y-2 sm:col-span-2">
+                <label htmlFor="category" className="block text-xs font-semibold text-slate-200">
+                  Product Type / Category (Optional)
+                </label>
+                <select
+                  id="category"
+                  name="category"
+                  value={formData.category}
+                  onChange={handleChange}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/80 border border-slate-700 text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+                >
+                  {COMMODITY_CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-slate-400">
+                  Used by the recommendation engine to apply category-specific barrier rules.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ==================================================================== */}
+        {/* STEP 2: STORAGE & SHELF LIFE                                         */}
+        {/* ==================================================================== */}
+        {currentStep === 2 && (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            <div className="flex items-center gap-3 pb-4 border-b border-slate-800">
+              <div className="w-10 h-10 rounded-xl bg-teal-500/15 border border-teal-500/30 flex items-center justify-center text-teal-400 font-bold text-sm">
+                02
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-white">Step 2: Storage & Shelf Life</h2>
+                <p className="text-xs text-slate-400">Specify holding temperature regime and expected preservation duration.</p>
+              </div>
+            </div>
+
+            {/* Storage Type Radio Cards */}
+            <div className="space-y-3">
+              <label className="block text-xs font-semibold text-slate-200">
+                Storage Regime <span className="text-rose-400">*</span>
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {[
+                  { id: 'ambient', label: 'Ambient', sub: 'Room temperature (~15–25°C)', icon: Thermometer },
+                  { id: 'chilled', label: 'Chilled', sub: 'Cold room / Refrigerator (0–4°C)', icon: Droplets },
+                  { id: 'frozen', label: 'Frozen', sub: 'Deep freezer (-18°C or below)', icon: Package },
+                ].map((st) => (
+                  <button
+                    key={st.id}
+                    type="button"
+                    onClick={() => setFormData((prev) => ({ ...prev, storageType: st.id }))}
+                    className={`p-4 rounded-xl border text-left transition-all ${
+                      formData.storageType === st.id
+                        ? 'bg-brand-500/15 border-brand-500 text-white ring-2 ring-brand-500/40'
+                        : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="font-semibold text-sm text-white flex items-center justify-between">
+                      <span>{st.label}</span>
+                      {formData.storageType === st.id && <Check className="w-4 h-4 text-brand-400" />}
+                    </div>
+                    <div className="text-xs text-slate-400 mt-1">{st.sub}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Desired Shelf Life Category */}
+            <div className="space-y-3 pt-2">
+              <label className="block text-xs font-semibold text-slate-200">
+                Desired Shelf Life Category <span className="text-rose-400">*</span>
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {SIMPLE_SHELF_LIFE_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setFormData((prev) => ({ ...prev, shelfLifeCategory: opt.id }))}
+                    className={`p-4 rounded-xl border text-left transition-all ${
+                      formData.shelfLifeCategory === opt.id
+                        ? 'bg-brand-500/15 border-brand-500 text-white ring-2 ring-brand-500/40'
+                        : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="font-semibold text-sm text-white flex items-center justify-between">
+                      <span>{opt.label}</span>
+                      {formData.shelfLifeCategory === opt.id && <Check className="w-4 h-4 text-brand-400" />}
+                    </div>
+                    <div className="text-xs text-slate-400 mt-1">{opt.description}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ==================================================================== */}
+        {/* STEP 3: TRANSPORT & SUSTAINABILITY                                   */}
+        {/* ==================================================================== */}
+        {currentStep === 3 && (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            <div className="flex items-center gap-3 pb-4 border-b border-slate-800">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 font-bold text-sm">
+                03
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-white">Step 3: Transport & Sustainability</h2>
+                <p className="text-xs text-slate-400">Configure logistics range and packaging circularity priorities.</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {/* Transport Distance */}
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold text-slate-200">
+                  Transport Distance
+                </label>
+                <div className="space-y-2">
+                  {SIMPLE_TRANSPORT_OPTIONS.map((opt) => (
                     <button
-                      key={st.id}
+                      key={opt.id}
                       type="button"
-                      onClick={() => handleStorageTypeChange(st)}
-                      className={`p-3.5 rounded-xl border text-left transition-all ${
-                        formData.storageType === st.id
-                          ? 'bg-brand-500/15 border-brand-500 text-white ring-1 ring-brand-500'
+                      onClick={() => setFormData((prev) => ({ ...prev, transportCategory: opt.id }))}
+                      className={`w-full p-3.5 rounded-xl border text-left transition-all flex items-start justify-between ${
+                        formData.transportCategory === opt.id
+                          ? 'bg-brand-500/15 border-brand-500 text-white ring-2 ring-brand-500/40'
                           : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
                       }`}
                     >
-                      <div className="font-semibold text-sm text-white">{st.label}</div>
-                      <div className="text-xs text-slate-400 mt-1">Default: {st.defaultTemp}°C, {st.defaultRH}% RH</div>
+                      <div>
+                        <div className="font-semibold text-sm text-white">{opt.label}</div>
+                        <div className="text-xs text-slate-400 mt-0.5">{opt.description}</div>
+                      </div>
+                      {formData.transportCategory === opt.id && <Check className="w-4 h-4 text-brand-400 mt-0.5 shrink-0" />}
                     </button>
                   ))}
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
-                {/* Storage Temp */}
-                <div className="space-y-1.5">
-                  <label htmlFor="storageTemp" className="block text-xs font-semibold text-slate-200">
-                    Storage Temperature (°C) <span className="text-rose-400">*</span>
-                  </label>
-                  <input
-                    id="storageTemp"
-                    name="storageTemp"
-                    type="number"
-                    step="0.5"
-                    value={formData.storageTemp}
-                    onChange={handleChange}
-                    className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border text-sm text-white focus:outline-none focus:ring-2 transition-all ${
-                      errors.storageTemp
-                        ? 'border-rose-500 focus:ring-rose-500/30'
-                        : 'border-slate-800 focus:border-brand-500 focus:ring-brand-500/20'
-                    }`}
-                  />
-                  <p className="text-[11px] text-slate-400">
-                    Optimal holding temp (Ambient ~20–25°C, Chilled ~2–4°C, Frozen ~-18°C).
-                  </p>
-                  {errors.storageTemp && (
-                    <p className="text-xs text-rose-400 flex items-center gap-1 mt-1">
-                      <AlertCircle className="w-3 h-3 shrink-0" />
-                      {errors.storageTemp}
-                    </p>
-                  )}
-                </div>
-
-                {/* Relative Humidity % */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label htmlFor="relativeHumidity" className="block text-xs font-semibold text-slate-200">
-                      Relative Humidity (% RH) <span className="text-rose-400">*</span>
-                    </label>
-                    <span className="text-[11px] text-slate-400">0 – 100%</span>
-                  </div>
-                  <input
-                    id="relativeHumidity"
-                    name="relativeHumidity"
-                    type="number"
-                    step="1"
-                    min="0"
-                    max="100"
-                    value={formData.relativeHumidity}
-                    onChange={handleChange}
-                    className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border text-sm text-white focus:outline-none focus:ring-2 transition-all ${
-                      errors.relativeHumidity
-                        ? 'border-rose-500 focus:ring-rose-500/30'
-                        : 'border-slate-800 focus:border-brand-500 focus:ring-brand-500/20'
-                    }`}
-                  />
-                  <p className="text-[11px] text-slate-400">
-                    Ambient RH ~50–60%, Cold Storage RH ~85–95%.
-                  </p>
-                  {errors.relativeHumidity && (
-                    <p className="text-xs text-rose-400 flex items-center gap-1 mt-1">
-                      <AlertCircle className="w-3 h-3 shrink-0" />
-                      {errors.relativeHumidity}
-                    </p>
-                  )}
-                </div>
-
-                {/* Desired Shelf Life */}
-                <div className="space-y-1.5">
-                  <label htmlFor="shelfLifeDays" className="block text-xs font-semibold text-slate-200">
-                    Target Shelf Life (Days) <span className="text-rose-400">*</span>
-                  </label>
-                  <input
-                    id="shelfLifeDays"
-                    name="shelfLifeDays"
-                    type="number"
-                    min="1"
-                    value={formData.shelfLifeDays}
-                    onChange={handleChange}
-                    className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border text-sm text-white focus:outline-none focus:ring-2 transition-all ${
-                      errors.shelfLifeDays
-                        ? 'border-rose-500 focus:ring-rose-500/30'
-                        : 'border-slate-800 focus:border-brand-500 focus:ring-brand-500/20'
-                    }`}
-                  />
-                  <p className="text-[11px] text-slate-400">
-                    Target shelf life required to avoid spoilage.
-                  </p>
-                  {errors.shelfLifeDays && (
-                    <p className="text-xs text-rose-400 flex items-center gap-1 mt-1">
-                      <AlertCircle className="w-3 h-3 shrink-0" />
-                      {errors.shelfLifeDays}
-                    </p>
-                  )}
-                </div>
-
-                {/* Transportation Condition */}
-                <div className="space-y-1.5">
-                  <label htmlFor="transportCondition" className="block text-xs font-semibold text-slate-200">
-                    Transportation Logistics Chain
-                  </label>
-                  <select
-                    id="transportCondition"
-                    name="transportCondition"
-                    value={formData.transportCondition}
-                    onChange={handleChange}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
-                  >
-                    {TRANSPORTATION_CONDITIONS.map((tc) => (
-                      <option key={tc} value={tc} className="bg-slate-900 text-white">
-                        {tc}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Transportation Days */}
-                <div className="space-y-1.5">
-                  <label htmlFor="transportDays" className="block text-xs font-semibold text-slate-200">
-                    Transit Duration (Days)
-                  </label>
-                  <input
-                    id="transportDays"
-                    name="transportDays"
-                    type="number"
-                    min="0"
-                    value={formData.transportDays}
-                    onChange={handleChange}
-                    className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border text-sm text-white focus:outline-none focus:ring-2 transition-all ${
-                      errors.transportDays
-                        ? 'border-rose-500 focus:ring-rose-500/30'
-                        : 'border-slate-800 focus:border-brand-500 focus:ring-brand-500/20'
-                    }`}
-                  />
-                </div>
-              </div>
-            </Card>
-
-            {/* Section 3: Engineering Preferences & Format */}
-            <Card className="p-6 sm:p-8 space-y-6">
-              <div className="flex items-center gap-3 pb-4 border-b border-slate-800">
-                <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 font-bold text-xs">
-                  03
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-white">Packaging Form & Sustainability Priorities</h2>
-                  <p className="text-xs text-slate-400">Configure multi-criteria optimization weights and packaging formats.</p>
+              {/* Sustainability Preference */}
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold text-slate-200">
+                  Sustainability Preference
+                </label>
+                <div className="space-y-2">
+                  {SIMPLE_SUSTAINABILITY_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setFormData((prev) => ({ ...prev, sustainabilityPreference: opt.id }))}
+                      className={`w-full p-3.5 rounded-xl border text-left transition-all flex items-start justify-between ${
+                        formData.sustainabilityPreference === opt.id
+                          ? 'bg-brand-500/15 border-brand-500 text-white ring-2 ring-brand-500/40'
+                          : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+                      }`}
+                    >
+                      <div>
+                        <div className="font-semibold text-sm text-white">{opt.label}</div>
+                        <div className="text-xs text-slate-400 mt-0.5">{opt.description}</div>
+                      </div>
+                      {formData.sustainabilityPreference === opt.id && <Check className="w-4 h-4 text-brand-400 mt-0.5 shrink-0" />}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                {/* Sustainability Preference */}
-                <div className="space-y-1.5">
-                  <label htmlFor="sustainabilityPreference" className="block text-xs font-semibold text-slate-200">
-                    Sustainability & Circular Economy Goal
-                  </label>
-                  <select
-                    id="sustainabilityPreference"
-                    name="sustainabilityPreference"
-                    value={formData.sustainabilityPreference}
-                    onChange={handleChange}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
-                  >
-                    {SUSTAINABILITY_PREFERENCES.map((sp) => (
-                      <option key={sp.id} value={sp.id} className="bg-slate-900 text-white">
-                        {sp.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Packaging Format */}
-                <div className="space-y-1.5">
-                  <label htmlFor="packagingFormat" className="block text-xs font-semibold text-slate-200">
-                    Packaging Format Preference
-                  </label>
-                  <select
-                    id="packagingFormat"
-                    name="packagingFormat"
-                    value={formData.packagingFormat}
-                    onChange={handleChange}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
-                  >
-                    {PACKAGING_FORMATS.map((pf) => (
-                      <option key={pf} value={pf} className="bg-slate-900 text-white">
-                        {pf}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              {/* Packaging Format Preference */}
+              <div className="space-y-2 sm:col-span-2 pt-2">
+                <label htmlFor="packagingFormat" className="block text-xs font-semibold text-slate-200">
+                  Packaging Format Preference (Optional)
+                </label>
+                <select
+                  id="packagingFormat"
+                  name="packagingFormat"
+                  value={formData.packagingFormat}
+                  onChange={handleChange}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/80 border border-slate-700 text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+                >
+                  {PACKAGING_FORMATS.map((pf) => (
+                    <option key={pf} value={pf}>
+                      {pf}
+                    </option>
+                  ))}
+                </select>
               </div>
-            </Card>
+            </div>
           </div>
         )}
 
-        {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
-          <button
-            type="button"
-            onClick={resetForm}
-            className="w-full sm:w-auto px-4 py-3 text-sm text-slate-400 hover:text-white flex items-center justify-center gap-2 hover:bg-slate-900 rounded-xl transition-colors"
-          >
-            <RotateCcw className="w-4 h-4" />
-            <span>Reset Form</span>
-          </button>
+        {/* ==================================================================== */}
+        {/* STEP 4: DATA AVAILABILITY CHECK                                      */}
+        {/* ==================================================================== */}
+        {currentStep === 4 && (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            <div className="flex items-center gap-3 pb-4 border-b border-slate-800">
+              <div className="w-10 h-10 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400 font-bold text-sm">
+                04
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-white">Step 4: Data Availability</h2>
+                <p className="text-xs text-slate-400">Do you have lab/test data or specific chemical metrics for this product?</p>
+              </div>
+            </div>
 
-          <Button
-            type="submit"
-            size="lg"
-            isLoading={isSubmitting}
-            icon={Sparkles}
-            iconPosition="right"
-            className="w-full sm:w-auto px-8"
-          >
-            {isSimpleMode ? 'Get Recommended Packaging' : 'Analyze & Generate Recommendation'}
-          </Button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+              {/* Option A: No Lab Data (Farmer / Simple Mode) */}
+              <button
+                type="button"
+                onClick={() => setFormData((prev) => ({ ...prev, hasLabData: false }))}
+                className={`p-5 rounded-2xl border text-left transition-all relative flex flex-col justify-between ${
+                  !formData.hasLabData
+                    ? 'bg-gradient-to-br from-emerald-950/70 to-slate-900 border-emerald-500/60 ring-2 ring-emerald-500/40 shadow-lg shadow-emerald-950/40'
+                    : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 text-slate-400'
+                }`}
+              >
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center font-bold">
+                      <Leaf className="w-5 h-5" />
+                    </div>
+                    {!formData.hasLabData && <CheckCircle className="w-5 h-5 text-emerald-400" />}
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                      <span>No, use typical values</span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 uppercase">
+                        Recommended
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
+                      PackWise AI automatically loads verified scientific defaults (moisture %, pH, respiration rate) from our food science database.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-slate-800/80 text-[11px] text-emerald-400 font-semibold flex items-center gap-1 mt-4">
+                  <span>Fast track → Jumps directly to Review & Submit</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </div>
+              </button>
+
+              {/* Option B: Yes, I have Lab Data (Advanced Mode) */}
+              <button
+                type="button"
+                onClick={() => setFormData((prev) => ({ ...prev, hasLabData: true }))}
+                className={`p-5 rounded-2xl border text-left transition-all relative flex flex-col justify-between ${
+                  formData.hasLabData
+                    ? 'bg-gradient-to-br from-indigo-950/70 to-slate-900 border-indigo-500/60 ring-2 ring-indigo-500/40 shadow-lg shadow-indigo-950/40'
+                    : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 text-slate-400'
+                }`}
+              >
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center font-bold">
+                      <FlaskConical className="w-5 h-5" />
+                    </div>
+                    {formData.hasLabData && <CheckCircle className="w-5 h-5 text-indigo-400" />}
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                      <span>Yes, I have lab data</span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 uppercase">
+                        Lab QA
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
+                      Allows specifying exact moisture %, pH value, lipid concentrations, and produce kinetics via custom category dropdowns or numbers.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-slate-800/80 text-[11px] text-indigo-400 font-semibold flex items-center gap-1 mt-4">
+                  <span>Advanced details → Opens Step 5 (Lab Metrics)</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </div>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ==================================================================== */}
+        {/* STEP 5: ADVANCED LAB DETAILS (Only if hasLabData === true)            */}
+        {/* ==================================================================== */}
+        {currentStep === 5 && formData.hasLabData && (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            <div className="flex items-center gap-3 pb-4 border-b border-slate-800">
+              <div className="w-10 h-10 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400 font-bold text-sm">
+                05
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-white">Step 5: Advanced Lab Details</h2>
+                <p className="text-xs text-slate-400">Configure category-based inputs or exact laboratory measurements.</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {/* Moisture Content */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="moistureCategory" className="block text-xs font-semibold text-slate-200">
+                    Moisture Content <span className="text-rose-400">*</span>
+                  </label>
+                  <span className="text-[11px] text-brand-400">Category or Exact %</span>
+                </div>
+                <select
+                  id="moistureCategory"
+                  name="moistureCategory"
+                  value={formData.moistureCategory}
+                  onChange={handleChange}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/80 border border-slate-700 text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+                >
+                  {MOISTURE_CATEGORY_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+
+                {formData.moistureCategory === 'exact' ? (
+                  <div className="pt-1.5 space-y-1">
+                    <label htmlFor="moisture" className="text-[11px] font-medium text-slate-300 block">
+                      Exact Moisture Percentage (%) <span className="text-rose-400">*</span>
+                    </label>
+                    <input
+                      id="moisture"
+                      name="moisture"
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max="100"
+                      value={formData.moisture}
+                      onChange={handleChange}
+                      placeholder="e.g., 94.0"
+                      className={`w-full px-3 py-2 rounded-lg bg-slate-900 border text-xs text-white focus:outline-none focus:ring-2 ${
+                        errors.moisture ? 'border-rose-500 focus:ring-rose-500/30' : 'border-slate-700 focus:border-brand-500'
+                      }`}
+                    />
+                    {errors.moisture && (
+                      <p className="text-[11px] text-rose-400 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3 shrink-0" />
+                        {errors.moisture}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-2 rounded-lg bg-slate-950/50 border border-slate-800/80 text-[11px] text-slate-400 leading-tight flex items-start gap-1.5">
+                    <Info className="w-3.5 h-3.5 text-brand-400 shrink-0 mt-0.5" />
+                    <span>
+                      {formData.moistureCategory === 'very_dry' && 'Very dry: chips, biscuits, milk powder, dry snacks.'}
+                      {formData.moistureCategory === 'dry' && 'Dry: wheat flour, rice, pulses, dry grains, dried foods.'}
+                      {formData.moistureCategory === 'moist' && 'Moist: fresh paneer, cheese, bakery with fillings.'}
+                      {formData.moistureCategory === 'very_moist' && 'Very moist: leafy vegetables, fresh fruits, vine tomatoes.'}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Oil / Fat Level */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="oilFatCategory" className="block text-xs font-semibold text-slate-200">
+                    Oil & Fat Level (Oxidation Risk)
+                  </label>
+                  <span className="text-[11px] text-brand-400">Category or Exact</span>
+                </div>
+                <select
+                  id="oilFatCategory"
+                  name="oilFatCategory"
+                  value={formData.oilFatCategory}
+                  onChange={handleChange}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/80 border border-slate-700 text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+                >
+                  {OIL_FAT_CATEGORY_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+
+                {formData.oilFatCategory === 'exact' ? (
+                  <div className="pt-1.5 space-y-1">
+                    <label htmlFor="oilFatLevel" className="text-[11px] font-medium text-slate-300 block">
+                      Exact Lipid Content Tier
+                    </label>
+                    <select
+                      id="oilFatLevel"
+                      name="oilFatLevel"
+                      value={formData.oilFatLevel}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-brand-500"
+                    >
+                      {OIL_FAT_LEVELS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div className="p-2 rounded-lg bg-slate-950/50 border border-slate-800/80 text-[11px] text-slate-400 leading-tight flex items-start gap-1.5">
+                    <Info className="w-3.5 h-3.5 text-brand-400 shrink-0 mt-0.5" />
+                    <span>
+                      {formData.oilFatCategory === 'very_low' && 'Very low: fresh produce, fruits, vegetables.'}
+                      {formData.oilFatCategory === 'low' && 'Low: grains, pulses, skimmed/low-fat dairy.'}
+                      {formData.oilFatCategory === 'medium' && 'Medium: baked goods, whole milk dairy, cookies.'}
+                      {formData.oilFatCategory === 'high' && 'High: potato chips, namkeen, roasted nuts.'}
+                      {formData.oilFatCategory === 'very_high' && 'Very high: butter, pure fats, oil-rich confectionery.'}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* pH Value */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="phCategory" className="block text-xs font-semibold text-slate-200">
+                    pH Level / Acidity <span className="text-rose-400">*</span>
+                  </label>
+                  <span className="text-[11px] text-brand-400">Category or Exact pH</span>
+                </div>
+                <select
+                  id="phCategory"
+                  name="phCategory"
+                  value={formData.phCategory}
+                  onChange={handleChange}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/80 border border-slate-700 text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+                >
+                  {PH_CATEGORY_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+
+                {formData.phCategory === 'exact' ? (
+                  <div className="pt-1.5 space-y-1">
+                    <label htmlFor="pH" className="text-[11px] font-medium text-slate-300 block">
+                      Exact pH Value <span className="text-rose-400">*</span>
+                    </label>
+                    <input
+                      id="pH"
+                      name="pH"
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max="14"
+                      value={formData.pH}
+                      onChange={handleChange}
+                      placeholder="e.g., 4.3"
+                      className={`w-full px-3 py-2 rounded-lg bg-slate-900 border text-xs text-white focus:outline-none focus:ring-2 ${
+                        errors.pH ? 'border-rose-500 focus:ring-rose-500/30' : 'border-slate-700 focus:border-brand-500'
+                      }`}
+                    />
+                    {errors.pH && (
+                      <p className="text-[11px] text-rose-400 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3 shrink-0" />
+                        {errors.pH}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-2 rounded-lg bg-slate-950/50 border border-slate-800/80 text-[11px] text-slate-400 leading-tight flex items-start gap-1.5">
+                    <Info className="w-3.5 h-3.5 text-brand-400 shrink-0 mt-0.5" />
+                    <span>
+                      {formData.phCategory === 'acidic' && 'Acidic: tomato, citrus fruits, berries, fruit juices.'}
+                      {formData.phCategory === 'neutral' && 'Neutral: milk, paneer, most vegetables, grains, pulses.'}
+                      {formData.phCategory === 'alkaline' && 'Alkaline: alkaline processed foods, ramen noodles.'}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Respiration Rate */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="respirationCategory" className="block text-xs font-semibold text-slate-200">
+                    Respiration Rate (Produce Kinetics)
+                  </label>
+                  <span className="text-[11px] text-brand-400">Biological Rate</span>
+                </div>
+                <select
+                  id="respirationCategory"
+                  name="respirationCategory"
+                  value={formData.respirationCategory}
+                  onChange={handleChange}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/80 border border-slate-700 text-sm text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+                >
+                  {RESPIRATION_CATEGORY_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+
+                <div className="p-2 rounded-lg bg-slate-950/50 border border-slate-800/80 text-[11px] text-slate-400 leading-tight flex items-start gap-1.5">
+                  <Info className="w-3.5 h-3.5 text-brand-400 shrink-0 mt-0.5" />
+                  <span>
+                    {formData.respirationCategory === 'very_low' && 'Very low: processed foods, dry goods, chips, powders.'}
+                    {formData.respirationCategory === 'low' && 'Low: onions, garlic, potatoes, mature pumpkins.'}
+                    {formData.respirationCategory === 'medium' && 'Medium: fresh tomatoes, bell peppers, carrots, mangoes.'}
+                    {formData.respirationCategory === 'high' && 'High: bananas, strawberries, avocados, cut fruits.'}
+                    {formData.respirationCategory === 'very_high' && 'Very high: spinach, mushrooms, asparagus, leafy greens.'}
+                    {formData.respirationCategory === 'i_dont_know' && "I don't know: PackWise applies standard non-respiring profile."}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ==================================================================== */}
+        {/* STEP 6: REVIEW & SUBMIT                                              */}
+        {/* ==================================================================== */}
+        {currentStep === 6 && (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            <div className="flex items-center gap-3 pb-4 border-b border-slate-800">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold text-sm">
+                06
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-white">Step 6: Review & Submit</h2>
+                <p className="text-xs text-slate-400">Verify your parameters below. You can click "Edit" on any section to adjust inputs.</p>
+              </div>
+            </div>
+
+            {/* Summary Grid Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+              {/* Card 1: Product Basics */}
+              <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2 relative group hover:border-slate-700 transition-colors">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-white text-sm flex items-center gap-1.5">
+                    <Package className="w-4 h-4 text-brand-400" />
+                    Product Basics
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => jumpToStep(1)}
+                    className="text-brand-400 hover:text-brand-300 font-semibold flex items-center gap-1 hover:underline"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    Edit
+                  </button>
+                </div>
+                <div className="space-y-1 text-slate-300 pt-1">
+                  <div>Commodity: <span className="font-semibold text-white">{formData.commodityName}</span></div>
+                  <div>Category: <span className="text-slate-400">{formData.category}</span></div>
+                </div>
+              </div>
+
+              {/* Card 2: Storage & Shelf Life */}
+              <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2 relative group hover:border-slate-700 transition-colors">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-white text-sm flex items-center gap-1.5">
+                    <Thermometer className="w-4 h-4 text-teal-400" />
+                    Storage & Shelf Life
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => jumpToStep(2)}
+                    className="text-brand-400 hover:text-brand-300 font-semibold flex items-center gap-1 hover:underline"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    Edit
+                  </button>
+                </div>
+                <div className="space-y-1 text-slate-300 pt-1">
+                  <div>Storage Regime: <span className="font-semibold text-white capitalize">{formData.storageType}</span></div>
+                  <div>Shelf Life Tier: <span className="capitalize">{formData.shelfLifeCategory}</span></div>
+                </div>
+              </div>
+
+              {/* Card 3: Transport & Sustainability */}
+              <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2 relative group hover:border-slate-700 transition-colors">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-white text-sm flex items-center gap-1.5">
+                    <Truck className="w-4 h-4 text-amber-400" />
+                    Transport & Sustainability
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => jumpToStep(3)}
+                    className="text-brand-400 hover:text-brand-300 font-semibold flex items-center gap-1 hover:underline"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    Edit
+                  </button>
+                </div>
+                <div className="space-y-1 text-slate-300 pt-1">
+                  <div>Transport Range: <span className="capitalize">{formData.transportCategory.replace('_', ' ')}</span></div>
+                  <div>Eco Preference: <span className="capitalize">{formData.sustainabilityPreference}</span></div>
+                  <div>Packaging Format: <span className="text-white">{formData.packagingFormat}</span></div>
+                </div>
+              </div>
+
+              {/* Card 4: Lab & Physicochemical Data */}
+              <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2 relative group hover:border-slate-700 transition-colors">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-white text-sm flex items-center gap-1.5">
+                    <FlaskConical className="w-4 h-4 text-purple-400" />
+                    Physicochemical Data
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => jumpToStep(formData.hasLabData ? 5 : 4)}
+                    className="text-brand-400 hover:text-brand-300 font-semibold flex items-center gap-1 hover:underline"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    Edit
+                  </button>
+                </div>
+                <div className="space-y-1 text-slate-300 pt-1">
+                  {formData.hasLabData ? (
+                    <>
+                      <div>Moisture: <span className="text-white">{formData.moistureCategory === 'exact' ? `${formData.moisture}%` : formData.moistureCategory.replace('_', ' ')}</span></div>
+                      <div>pH: <span className="text-white">{formData.phCategory === 'exact' ? formData.pH : formData.phCategory}</span></div>
+                      <div>Oil/Fat: <span className="capitalize">{formData.oilFatCategory.replace('_', ' ')}</span></div>
+                      <div>Respiration: <span className="capitalize">{formData.respirationCategory.replace('_', ' ')}</span></div>
+                    </>
+                  ) : (
+                    <div className="text-emerald-400 flex items-center gap-1.5 pt-1">
+                      <ShieldCheck className="w-4 h-4 shrink-0" />
+                      <span>Auto-resolved using database commodity reference defaults.</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Ready to Submit Alert */}
+            <div className="p-4 rounded-xl bg-emerald-950/30 border border-emerald-500/30 flex items-center gap-3">
+              <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
+              <div className="text-xs text-slate-200">
+                <span className="font-bold text-emerald-300">Ready for evaluation! </span>
+                Click the button below to execute the 7-stage deterministic recommendation engine.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ==================================================================== */}
+        {/* WIZARD NAVIGATION FOOTER                                             */}
+        {/* ==================================================================== */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-800/80">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            {currentStep > 1 && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="md"
+                onClick={goToPrevStep}
+                icon={ChevronLeft}
+              >
+                Previous Step
+              </Button>
+            )}
+
+            <button
+              type="button"
+              onClick={resetForm}
+              className="px-3.5 py-2.5 text-xs text-slate-400 hover:text-white flex items-center gap-1.5 hover:bg-slate-800/80 rounded-xl transition-colors"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset</span>
+            </button>
+          </div>
+
+          <div className="w-full sm:w-auto">
+            {currentStep === 6 ? (
+              <Button
+                type="button"
+                size="lg"
+                onClick={handleSubmit}
+                isLoading={isSubmitting}
+                icon={Sparkles}
+                iconPosition="right"
+                className="w-full sm:w-auto px-8"
+              >
+                Analyze & Generate Recommendation
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="lg"
+                onClick={goToNextStep}
+                icon={ChevronRight}
+                iconPosition="right"
+                className="w-full sm:w-auto px-6"
+              >
+                Continue to Step {currentStep === 4 && !formData.hasLabData ? (formData.hasLabData ? 5 : 5) : (currentStep + 1 > totalSteps ? totalSteps : currentStep + 1)}
+              </Button>
+            )}
+          </div>
         </div>
-      </form>
+      </Card>
 
       {/* Decision Support Disclaimer */}
       <DisclaimerBanner compact />
     </div>
   );
 }
-
