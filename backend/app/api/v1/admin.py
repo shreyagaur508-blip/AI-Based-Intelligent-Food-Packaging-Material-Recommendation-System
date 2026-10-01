@@ -1,6 +1,7 @@
 """Admin & Analytics dashboard endpoints."""
 
 from fastapi import APIRouter, Depends
+# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.schemas.dashboard import DashboardSummaryResponse

@@ -1,37 +1,38 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Package, ArrowLeft, Home } from 'lucide-react';
+import { Package, ArrowLeft, Home, Sparkles } from 'lucide-react';
 import Button from '../components/common/Button';
+import Card from '../components/common/Card';
 
 export default function NotFoundPage() {
   return (
-    <div className="min-h-[70vh] flex items-center justify-center px-4 py-16">
-      <div className="text-center space-y-6 max-w-md">
-        <div className="w-20 h-20 rounded-2xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-400 mx-auto shadow-xl shadow-brand-500/10">
-          <Package className="w-10 h-10" />
+    <div className="min-h-[65vh] flex items-center justify-center px-4 sm:px-6 lg:px-8 py-16">
+      <Card className="p-8 sm:p-12 text-center space-y-6 max-w-md w-full border-slate-800 bg-slate-900/90 shadow-2xl">
+        <div className="w-16 h-16 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mx-auto shadow-xl">
+          <Package className="w-8 h-8" />
         </div>
 
         <div className="space-y-2">
-          <div className="text-6xl font-extrabold font-display text-white">404</div>
-          <h1 className="text-2xl font-bold text-white">Page Not Found</h1>
-          <p className="text-xs sm:text-sm text-slate-400">
-            The requested packaging resource or route does not exist.
+          <div className="text-5xl font-extrabold font-display text-white">404</div>
+          <h1 className="text-xl sm:text-2xl font-bold text-white">Page Not Found</h1>
+          <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
+            The requested packaging page or route does not exist or has moved.
           </p>
         </div>
 
-        <div className="flex justify-center gap-3 pt-2">
-          <Link to="/">
-            <Button size="md" icon={Home}>
-              Return to Home
+        <div className="flex flex-col sm:flex-row justify-center gap-3 pt-2">
+          <Link to="/" className="w-full sm:w-auto">
+            <Button size="md" icon={Home} fullWidth className="sm:w-auto">
+              Home
             </Button>
           </Link>
-          <Link to="/recommend">
-            <Button size="md" variant="secondary" icon={ArrowLeft}>
+          <Link to="/recommend" className="w-full sm:w-auto">
+            <Button size="md" variant="secondary" icon={Sparkles} fullWidth className="sm:w-auto">
               Get Recommendation
             </Button>
           </Link>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

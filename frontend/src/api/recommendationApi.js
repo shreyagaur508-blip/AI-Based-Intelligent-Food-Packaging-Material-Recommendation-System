@@ -6,8 +6,8 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
 /**
- * Normalizes user form inputs to match backend RecommendationRequest schema for simple and advanced modes.
- * Supports Phase 6 category-based inputs (moisture_category, ph_category, oil_fat_category, respiration_category).
+ * Normalizes user form inputs to match backend RecommendationRequest schema.
+ * Supports simple mode and advanced mode.
  * @param {Object} formData
  * @returns {Object}
  */
@@ -53,27 +53,27 @@ export function normalizeRecommendationPayload(formData) {
     return payload;
   }
 
-  // 2. ADVANCED MODE PAYLOAD (Category-based inputs with optional exact overrides)
+  // 2. ADVANCED MODE PAYLOAD (Detailed numeric & categorical fields)
   const category = formData.commodity_category || formData.category || 'Other / Custom';
   
-  // Moisture: category or exact numeric
+  // Moisture
   const moistureCategory = formData.moisture_category || formData.moistureCategory;
   const isExactMoisture = moistureCategory === 'exact' || (moistureCategory === undefined && (formData.moisture_percent !== undefined || formData.moisture !== undefined));
   const moistureNum = parseFloat(formData.moisture_percent ?? formData.moisture);
 
-  // pH: category or exact numeric
+  // pH
   const phCategory = formData.ph_category || formData.phCategory;
   const isExactPh = phCategory === 'exact' || (phCategory === undefined && (formData.ph !== undefined || formData.pH !== undefined));
   const phNum = parseFloat(formData.ph ?? formData.pH);
 
-  // Oil / Fat: category or exact level
+  // Oil / Fat
   const oilFatCategory = formData.oil_fat_category || formData.oilFatCategory;
   const isExactOilFat = oilFatCategory === 'exact' || (oilFatCategory === undefined && (formData.oil_fat_level !== undefined || formData.oilFatLevel !== undefined));
   let oilFat = (formData.oil_fat_level || formData.oilFatLevel || 'low').toLowerCase();
   if (oilFat === 'none') oilFat = 'low';
   else if (oilFat === 'moderate') oilFat = 'medium';
 
-  // Respiration: category or exact rate
+  // Respiration
   const respirationCategory = formData.respiration_category || formData.respirationCategory;
   const isExactRespiration = respirationCategory === 'exact' || (respirationCategory === undefined && (formData.respiration_rate !== undefined || formData.respirationRate !== undefined));
   let respiration = (formData.respiration_rate || formData.respirationRate || 'very_low').toLowerCase();
@@ -181,7 +181,7 @@ export async function generateRecommendation(formData) {
   } catch (error) {
     if (error.name === 'TypeError' && error.message.includes('fetch')) {
       throw new Error(
-        `Backend unavailable. Unable to connect to ${API_BASE_URL}. Please ensure the FastAPI backend is running.`
+        `Backend server unavailable (${API_BASE_URL}). Please verify that FastAPI backend is running.`
       );
     }
     throw error;
@@ -204,6 +204,44 @@ export async function fetchCommodities() {
     return [];
   } catch {
     return [];
+  }
+}
+
+/**
+ * Fetches all available packaging materials from backend.
+ * @returns {Promise<Array>}
+ */
+export async function fetchMaterials() {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/materials`, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' }
+    });
+    if (response.ok) {
+      return await response.json();
+    }
+    return [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Fetches admin dashboard overview summary from backend.
+ * @returns {Promise<Object|null>}
+ */
+export async function fetchAdminSummary() {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/admin/dashboard-summary`, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' }
+    });
+    if (response.ok) {
+      return await response.json();
+    }
+    return null;
+  } catch {
+    return null;
   }
 }
 
