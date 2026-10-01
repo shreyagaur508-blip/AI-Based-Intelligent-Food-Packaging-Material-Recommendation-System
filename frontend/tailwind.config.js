@@ -27,8 +27,8 @@ export default {
         }
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
-        display: ['Outfit', 'Inter', 'system-ui', 'sans-serif'],
+        sans: ['Inter', 'Noto Sans Devanagari', 'Noto Sans Kannada', 'system-ui', '-apple-system', 'sans-serif'],
+        display: ['Outfit', 'Noto Sans Devanagari', 'Noto Sans Kannada', 'Inter', 'system-ui', 'sans-serif'],
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',

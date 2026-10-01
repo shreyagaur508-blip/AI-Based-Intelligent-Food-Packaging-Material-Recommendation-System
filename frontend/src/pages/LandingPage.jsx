@@ -3,119 +3,114 @@ import { Link } from 'react-router-dom';
 import {
   Sparkles,
   ShieldCheck,
-  Zap,
   ArrowRight,
   Leaf,
   Layers,
   ThermometerSnowflake,
   Wind,
   Droplets,
-  AlertTriangle,
   Flame,
-  CheckCircle2,
   PackageCheck,
   Scale,
-  FileSpreadsheet,
-  Package,
-  Activity,
-  Cpu,
-  Clock,
-  ExternalLink
+  FileSpreadsheet
 } from 'lucide-react';
 import Button from '../components/common/Button';
 import Card from '../components/common/Card';
 import Badge from '../components/common/Badge';
 import SectionHeader from '../components/common/SectionHeader';
 import DisclaimerBanner from '../components/common/DisclaimerBanner';
+import { useTranslation } from '../i18n';
 
 export default function LandingPage() {
+  const { t, getCommodityName, getCategoryName } = useTranslation();
+
   const problems = [
     {
       icon: Flame,
-      title: 'High Food Spoilage & Premature Loss',
-      description: 'Up to 30% of perishable and dry food products spoil prematurely due to mismatched oxygen (OTR) and water vapor (WVTR) barrier transmission rates.',
+      title: t('landing.prob_1_title'),
+      description: t('landing.prob_1_desc'),
     },
     {
       icon: Layers,
-      title: 'Expensive Empirical Trial & Error',
-      description: 'Small food processors and packaging engineers waste weeks and substantial capital on physical trial-and-error shelf-life trials without predictive barrier models.',
+      title: t('landing.prob_2_title'),
+      description: t('landing.prob_2_desc'),
     },
     {
       icon: Leaf,
-      title: 'Recyclability vs Barrier Conflicts',
-      description: 'Balancing stringent oxygen barrier performance with circular, mono-material recycling streams is complex and counter-intuitive.',
+      title: t('landing.prob_3_title'),
+      description: t('landing.prob_3_desc'),
     },
   ];
 
   const features = [
     {
       icon: Wind,
-      badge: 'Fresh Produce EMAP',
-      title: 'Respiration-Aware Gas Exchange',
-      description: 'Differentiates climacteric fruits and high-respiration produce to recommend breathable or laser micro-perforated films, preventing anaerobic spoilage.',
+      badge: t('landing.feat_1_badge'),
+      title: t('landing.feat_1_title'),
+      description: t('landing.feat_1_desc'),
     },
     {
       icon: ShieldCheck,
-      badge: 'Lipid Protection',
-      title: 'Oxidation & Light Barrier Rules',
-      description: 'Derives strict maximum OTR (≤ 1.0–5.0 cm³/m²·d) and UV barrier requirements for high-fat snacks, roasted nuts, and dairy powders.',
+      badge: t('landing.feat_2_badge'),
+      title: t('landing.feat_2_title'),
+      description: t('landing.feat_2_desc'),
     },
     {
       icon: Droplets,
-      badge: 'Crispness Control',
-      title: 'Water Vapor Sorption Defense',
-      description: 'Computes critical WVTR thresholds (≤ 1.5 g/m²·d) to safeguard crispy snacks from softening and dry powders from moisture caking.',
+      badge: t('landing.feat_3_badge'),
+      title: t('landing.feat_3_title'),
+      description: t('landing.feat_3_desc'),
     },
     {
       icon: ThermometerSnowflake,
-      badge: 'Cold Chain Integrity',
-      title: 'Sub-Zero Flex Crack Resistance',
-      description: 'Mandates cold-impact sealants and high puncture resistance for frozen foods, eliminating brittle polymers prone to freezer burn.',
+      badge: t('landing.feat_4_badge'),
+      title: t('landing.feat_4_title'),
+      description: t('landing.feat_4_desc'),
     },
     {
       icon: Scale,
-      badge: 'MCDA Optimization',
-      title: 'Multi-Criteria Decision Analysis',
-      description: 'Dynamically balances barrier protection, carbon footprint, recyclability rating, and cost efficiency according to your priorities.',
+      badge: t('landing.feat_5_badge'),
+      title: t('landing.feat_5_title'),
+      description: t('landing.feat_5_desc'),
     },
     {
       icon: PackageCheck,
-      badge: 'Safety First',
-      title: '100% Food-Grade Regulatory Gate',
-      description: 'Zero tolerance for non-certified polymers. Evaluates every candidate against US FDA 21 CFR 177, EU 10/2011, and FSSAI standards.',
+      badge: t('landing.feat_6_badge'),
+      title: t('landing.feat_6_title'),
+      description: t('landing.feat_6_desc'),
     },
   ];
 
   const steps = [
     {
       num: '01',
-      title: 'Enter Food Profile',
-      desc: 'Input commodity characteristics (moisture, pH, oil/fat, respiration rate) or pick from preloaded presets.',
+      title: t('landing.step_1_title'),
+      desc: t('landing.step_1_desc'),
     },
     {
       num: '02',
-      title: 'Barrier & Risk Physics',
-      desc: 'The engine models environmental deltas, microbial moisture limits, oxidation sensitivity, and ASTM barrier thresholds.',
+      title: t('landing.step_2_title'),
+      desc: t('landing.step_2_desc'),
     },
     {
       num: '03',
-      title: 'Safety Filtering',
-      desc: 'Incompatible materials (e.g. non-perforated barriers on respiring produce) are disqualified with scientific explanations.',
+      title: t('landing.step_3_title'),
+      desc: t('landing.step_3_desc'),
     },
     {
       num: '04',
-      title: 'Optimal Recommendations',
-      desc: 'Receive primary material structure, gauge thickness, MAP gas composition, eco-alternatives, and technical spec sheets.',
+      title: t('landing.step_4_title'),
+      desc: t('landing.step_4_desc'),
     },
   ];
 
   const showcaseCommodities = [
     { name: 'Tomato', tag: 'Fresh Produce', best: 'Micro-Perforated Film (EMAP)', preset: 'tomato' },
-    { name: 'Banana', tag: 'Climacteric Fruit', best: 'Laser-Perforated EMAP Bag', preset: 'banana' },
-    { name: 'Potato Chips', tag: 'Crisp Snack', best: 'Met-PET / BOPP Laminate', preset: 'potato_chips' },
+    { name: 'Banana', tag: 'Fresh Produce', best: 'Laser-Perforated EMAP Bag', preset: 'banana' },
+    { name: 'Potato Chips', tag: 'Dry Crisp Foods', best: 'Met-PET / BOPP Laminate', preset: 'potato_chips' },
     { name: 'Paneer', tag: 'Perishable Dairy', best: 'PET/EVOH/PE High-Barrier Vacuum', preset: 'paneer' },
-    { name: 'Frozen Peas', tag: 'Frozen Food', best: 'Metallocene LDPE Co-ex Pouch', preset: 'frozen_peas' },
-    { name: 'Milk Powder', tag: 'Dry Powder', best: 'Aluminum Foil Multilayer Laminate', preset: 'milk_powder' },
+    { name: 'Frozen Peas', tag: 'Frozen Foods', best: 'Metallocene LDPE Co-ex Pouch', preset: 'frozen_peas' },
+    { name: 'Milk Powder', tag: 'Powders & Grains', best: 'Aluminum Foil Multilayer Laminate', preset: 'milk_powder' },
   ];
 
   return (
@@ -125,27 +120,27 @@ export default function LandingPage() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-8 relative z-10">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs sm:text-sm font-medium">
             <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>AI & Physics-Based Food Packaging Intelligence</span>
+            <span>{t('landing.badge')}</span>
           </div>
 
           <div className="space-y-4 max-w-4xl mx-auto">
             <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.15]">
-              Intelligent Food Packaging Material Recommendation System
+              {t('landing.hero_title')}
             </h1>
             <p className="text-base sm:text-xl text-slate-300 max-w-2xl mx-auto leading-relaxed">
-              Get smart packaging suggestions for your food products. Optimize shelf-life, barrier protection (OTR & WVTR), food safety, and sustainability in seconds.
+              {t('landing.hero_subtitle')}
             </p>
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 pt-2">
             <Link to="/recommend" className="w-full sm:w-auto">
               <Button size="lg" icon={Sparkles} iconPosition="right" fullWidth className="sm:w-auto shadow-lg shadow-emerald-950/50">
-                Get Recommendation
+                {t('landing.cta_recommend')}
               </Button>
             </Link>
             <Link to="/admin" className="w-full sm:w-auto">
               <Button size="lg" variant="secondary" icon={FileSpreadsheet} fullWidth className="sm:w-auto">
-                Explore Knowledge Base
+                {t('landing.cta_admin')}
               </Button>
             </Link>
           </div>
@@ -154,19 +149,19 @@ export default function LandingPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 max-w-4xl mx-auto pt-6">
             <div className="glass-panel p-4 text-center">
               <div className="text-2xl font-bold text-white font-display">12+</div>
-              <div className="text-xs text-slate-400 mt-1">Food Profiles</div>
+              <div className="text-xs text-slate-400 mt-1">{t('landing.metric_profiles')}</div>
             </div>
             <div className="glass-panel p-4 text-center">
               <div className="text-2xl font-bold text-emerald-400 font-display">ASTM D3985 / F1249</div>
-              <div className="text-xs text-slate-400 mt-1">OTR & WVTR Standardized</div>
+              <div className="text-xs text-slate-400 mt-1">{t('landing.metric_astm')}</div>
             </div>
             <div className="glass-panel p-4 text-center">
               <div className="text-2xl font-bold text-teal-300 font-display">100%</div>
-              <div className="text-xs text-slate-400 mt-1">Food-Grade Certified</div>
+              <div className="text-xs text-slate-400 mt-1">{t('landing.metric_compliance')}</div>
             </div>
             <div className="glass-panel p-4 text-center">
-              <div className="text-2xl font-bold text-indigo-300 font-display">Explainable</div>
-              <div className="text-xs text-slate-400 mt-1">Rule-Based Reasoning</div>
+              <div className="text-2xl font-bold text-indigo-300 font-display">{t('landing.metric_explainable')}</div>
+              <div className="text-xs text-slate-400 mt-1">Rule Engine MCDA</div>
             </div>
           </div>
         </div>
@@ -175,10 +170,10 @@ export default function LandingPage() {
       {/* Problem Statement Section */}
       <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <SectionHeader
-          badge="The Packaging Challenge"
+          badge={t('landing.challenge_badge')}
           badgeVariant="rose"
-          title="Why Food Packaging Fails"
-          subtitle="Selecting packaging without scientific barrier analysis leads to spoilage, regulatory failure, and unnecessary plastic waste."
+          title={t('landing.challenge_title')}
+          subtitle={t('landing.challenge_subtitle')}
           centered
           className="mb-10"
         />
@@ -202,10 +197,10 @@ export default function LandingPage() {
       {/* Solution Overview Section */}
       <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <SectionHeader
-          badge="The Solution"
+          badge={t('landing.sol_badge')}
           badgeVariant="brand"
-          title="Predictive, Scientific Packaging Intelligence"
-          subtitle="PackWise AI matches food degradation vectors with precise polymer barrier properties and environmental sustainability criteria."
+          title={t('landing.sol_title')}
+          subtitle={t('landing.sol_subtitle')}
           centered
           className="mb-12"
         />
@@ -237,10 +232,10 @@ export default function LandingPage() {
       <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="packwise-card p-6 sm:p-10 border-slate-800">
           <SectionHeader
-            badge="Workflow"
+            badge={t('landing.workflow_badge')}
             badgeVariant="teal"
-            title="How PackWise AI Works"
-            subtitle="A transparent, deterministic 4-stage decision pipeline rooted in food chemistry and packaging engineering."
+            title={t('landing.workflow_title')}
+            subtitle={t('landing.workflow_subtitle')}
             centered
             className="mb-10"
           />
@@ -260,7 +255,7 @@ export default function LandingPage() {
           <div className="mt-8 text-center">
             <Link to="/recommend">
               <Button size="md" icon={ArrowRight} iconPosition="right">
-                Start Recommendation Wizard
+                {t('landing.start_wizard')}
               </Button>
             </Link>
           </div>
@@ -270,13 +265,13 @@ export default function LandingPage() {
       {/* Target Food Sectors & Ready Presets */}
       <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <SectionHeader
-          badge="Preconfigured Presets"
+          badge={t('landing.presets_badge')}
           badgeVariant="amber"
-          title="Supported Food Commodities"
-          subtitle="Instant packaging barrier calculations available for common high-risk and high-volume food sectors."
+          title={t('landing.presets_title')}
+          subtitle={t('landing.presets_subtitle')}
           action={
             <Link to="/recommend" className="text-emerald-400 hover:text-emerald-300 text-sm font-semibold flex items-center gap-1">
-              <span>Test in wizard</span>
+              <span>{t('landing.test_in_wizard')}</span>
               <ArrowRight className="w-4 h-4" />
             </Link>
           }
@@ -288,13 +283,13 @@ export default function LandingPage() {
             <Card key={idx} hover className="p-4 flex flex-col justify-between space-y-3">
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <Badge variant="slate" size="xs">{comm.tag}</Badge>
-                  <span className="text-[10px] text-emerald-400 font-medium">Ready Preset</span>
+                  <Badge variant="slate" size="xs">{getCategoryName(comm.tag)}</Badge>
+                  <span className="text-[10px] text-emerald-400 font-medium">{t('landing.ready_preset')}</span>
                 </div>
-                <h4 className="text-base font-bold text-white">{comm.name}</h4>
+                <h4 className="text-base font-bold text-white">{getCommodityName(comm.name)}</h4>
               </div>
               <div className="pt-2 border-t border-slate-800/80 text-xs text-slate-400">
-                <span className="text-emerald-400 font-semibold block text-[11px] mb-0.5">Recommended Structure:</span>
+                <span className="text-emerald-400 font-semibold block text-[11px] mb-0.5">{t('landing.recommended_structure')}</span>
                 <span>{comm.best}</span>
               </div>
             </Card>

@@ -1,35 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Database,
   Layers,
-  Sparkles,
   Sliders,
   ShieldCheck,
   Search,
-  CheckCircle2,
-  AlertTriangle,
-  Info,
-  ExternalLink,
   BookOpen,
-  Filter,
   ChevronLeft,
   ChevronRight,
-  Activity,
-  CheckCircle,
-  FileSpreadsheet
 } from 'lucide-react';
 import Button from '../components/common/Button';
 import Card from '../components/common/Card';
 import Badge from '../components/common/Badge';
 import Input from '../components/common/Input';
-import SectionHeader from '../components/common/SectionHeader';
 import DisclaimerBanner from '../components/common/DisclaimerBanner';
 import {
   PRESET_COMMODITIES,
   INITIAL_MATERIALS_CATALOG,
-  ADMIN_STATS_MOCK
 } from '../data/mockData';
-import { fetchCommodities, fetchMaterials, fetchAdminSummary, checkBackendHealth } from '../api/recommendationApi';
+import { fetchCommodities, fetchMaterials, checkBackendHealth } from '../api/recommendationApi';
+import { useTranslation } from '../i18n';
 
 const HEURISTIC_RULES = [
   { id: 1, name: 'Climacteric EMAP Rule', trigger: 'Respiration Rate = High/Very High', action: 'Mandate laser micro-perforated or breathable film (OTR > 1000)', standard: 'Produce Physiology' },
@@ -43,9 +32,10 @@ const HEURISTIC_RULES = [
 ];
 
 export default function AdminPage() {
+  const { t, getCommodityName, getCategoryName, getStorageTypeName } = useTranslation();
+
   const [activeTab, setActiveTab] = useState('commodities');
   const [searchQuery, setSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all');
   const [isBackendConnected, setIsBackendConnected] = useState(false);
   const [commodities, setCommodities] = useState(PRESET_COMMODITIES);
   const [materials, setMaterials] = useState(INITIAL_MATERIALS_CATALOG);
@@ -75,8 +65,7 @@ export default function AdminPage() {
       c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (c.category && c.category.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (c.notes && c.notes.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchesCategory = categoryFilter === 'all' || c.category === categoryFilter;
-    return matchesSearch && matchesCategory;
+    return matchesSearch;
   });
 
   // Filter materials
@@ -101,7 +90,7 @@ export default function AdminPage() {
   // Reset pagination on search / filter
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, categoryFilter, activeTab]);
+  }, [searchQuery, activeTab]);
 
   // Pagination calculation
   const currentList =
@@ -123,14 +112,14 @@ export default function AdminPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-6">
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <Badge variant="purple" size="sm">Admin Knowledge Hub</Badge>
-            <span className="text-xs text-slate-400">Database & Heuristic Rules Administration</span>
+            <Badge variant="purple" size="sm">{t('admin.badge')}</Badge>
+            <span className="text-xs text-slate-400">{t('admin.badge_sub')}</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            Packaging Knowledge Hub
+            {t('admin.title')}
           </h1>
           <p className="text-sm text-slate-300 mt-1">
-            Explore commodity degradation parameters, ASTM barrier polymer specifications, and active expert rules.
+            {t('admin.subtitle')}
           </p>
         </div>
 
@@ -141,7 +130,7 @@ export default function AdminPage() {
               : 'bg-slate-900 text-slate-300 border-slate-800'
           }`}>
             <span className={`w-2 h-2 rounded-full ${isBackendConnected ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`}></span>
-            <span>{isBackendConnected ? 'FastAPI Backend Online' : 'Local Seed Catalog'}</span>
+            <span>{isBackendConnected ? t('admin.backend_online') : t('admin.local_catalog')}</span>
           </div>
         </div>
       </div>
@@ -157,13 +146,13 @@ export default function AdminPage() {
           }`}
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">Commodities</span>
+            <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">{t('admin.stat_commodities')}</span>
             <span className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
               <BookOpen className="w-4 h-4" />
             </span>
           </div>
           <div className="text-2xl sm:text-3xl font-bold text-white font-display">{commodities.length}</div>
-          <div className="text-xs text-slate-400 mt-1">Food Profiles</div>
+          <div className="text-xs text-slate-400 mt-1">{t('admin.stat_commodities_sub')}</div>
         </Card>
 
         {/* Materials */}
@@ -175,13 +164,13 @@ export default function AdminPage() {
           }`}
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-teal-400 uppercase tracking-wider">Materials</span>
+            <span className="text-xs font-bold text-teal-400 uppercase tracking-wider">{t('admin.stat_materials')}</span>
             <span className="p-1.5 rounded-lg bg-teal-500/10 text-teal-400">
               <Layers className="w-4 h-4" />
             </span>
           </div>
           <div className="text-2xl sm:text-3xl font-bold text-white font-display">{materials.length}</div>
-          <div className="text-xs text-slate-400 mt-1">ASTM Polymers & Laminates</div>
+          <div className="text-xs text-slate-400 mt-1">{t('admin.stat_materials_sub')}</div>
         </Card>
 
         {/* Decision Rules */}
@@ -193,25 +182,25 @@ export default function AdminPage() {
           }`}
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">Heuristic Rules</span>
+            <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">{t('admin.stat_rules')}</span>
             <span className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400">
               <Sliders className="w-4 h-4" />
             </span>
           </div>
           <div className="text-2xl sm:text-3xl font-bold text-white font-display">{HEURISTIC_RULES.length}</div>
-          <div className="text-xs text-slate-400 mt-1">Active Safety Gates</div>
+          <div className="text-xs text-slate-400 mt-1">{t('admin.stat_rules_sub')}</div>
         </Card>
 
         {/* Food-Grade Compliance */}
         <Card className="p-5 border-slate-800 bg-slate-900/60">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-indigo-400 uppercase tracking-wider">Compliance</span>
+            <span className="text-xs font-bold text-indigo-400 uppercase tracking-wider">{t('admin.stat_compliance')}</span>
             <span className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400">
               <ShieldCheck className="w-4 h-4" />
             </span>
           </div>
           <div className="text-2xl sm:text-3xl font-bold text-white font-display">100%</div>
-          <div className="text-xs text-slate-400 mt-1">FDA & EU Food-Contact</div>
+          <div className="text-xs text-slate-400 mt-1">{t('admin.stat_compliance_sub')}</div>
         </Card>
       </div>
 
@@ -229,7 +218,7 @@ export default function AdminPage() {
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              Commodities ({commodities.length})
+              {t('admin.tab_commodities')} ({commodities.length})
             </button>
             <button
               type="button"
@@ -240,7 +229,7 @@ export default function AdminPage() {
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              Packaging Materials ({materials.length})
+              {t('admin.tab_materials')} ({materials.length})
             </button>
             <button
               type="button"
@@ -251,7 +240,7 @@ export default function AdminPage() {
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              Decision Rules ({HEURISTIC_RULES.length})
+              {t('admin.tab_rules')} ({HEURISTIC_RULES.length})
             </button>
           </div>
 
@@ -259,7 +248,7 @@ export default function AdminPage() {
           <div className="w-full sm:w-72">
             <Input
               name="search"
-              placeholder={`Search ${activeTab}...`}
+              placeholder={t('admin.search_placeholder', { tab: activeTab })}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               icon={Search}
@@ -275,27 +264,27 @@ export default function AdminPage() {
             <table className="w-full text-left text-xs text-slate-300">
               <thead className="bg-slate-950/80 text-slate-400 uppercase text-[11px] font-semibold border-b border-slate-800">
                 <tr>
-                  <th className="px-5 py-3.5">Commodity Name</th>
-                  <th className="px-5 py-3.5">Category</th>
-                  <th className="px-5 py-3.5 text-center">Moisture %</th>
-                  <th className="px-5 py-3.5 text-center">pH</th>
-                  <th className="px-5 py-3.5">Respiration</th>
-                  <th className="px-5 py-3.5">Storage</th>
-                  <th className="px-5 py-3.5 text-center">Shelf Life</th>
+                  <th className="px-5 py-3.5">{t('admin.col_comm_name')}</th>
+                  <th className="px-5 py-3.5">{t('admin.col_category')}</th>
+                  <th className="px-5 py-3.5 text-center">{t('admin.col_moisture')}</th>
+                  <th className="px-5 py-3.5 text-center">{t('admin.col_ph')}</th>
+                  <th className="px-5 py-3.5">{t('admin.col_respiration')}</th>
+                  <th className="px-5 py-3.5">{t('admin.col_storage')}</th>
+                  <th className="px-5 py-3.5 text-center">{t('admin.col_shelf_life')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
                 {paginatedList.length === 0 ? (
                   <tr>
                     <td colSpan="7" className="px-5 py-8 text-center text-slate-400">
-                      No commodities match your search query.
+                      {t('admin.no_items_found')}
                     </td>
                   </tr>
                 ) : (
                   paginatedList.map((c, idx) => (
                     <tr key={c.id || idx} className="hover:bg-slate-850/40 transition-colors">
                       <td className="px-5 py-4 font-semibold text-white">
-                        <div>{c.name}</div>
+                        <div>{getCommodityName(c.name)}</div>
                         {c.badge && (
                           <span className="text-[10px] text-emerald-400 font-normal block mt-0.5">
                             {c.badge}
@@ -303,7 +292,7 @@ export default function AdminPage() {
                         )}
                       </td>
                       <td className="px-5 py-4">
-                        <Badge variant="slate" size="xs">{c.category || 'Standard'}</Badge>
+                        <Badge variant="slate" size="xs">{getCategoryName(c.category || 'Fresh Produce')}</Badge>
                       </td>
                       <td className="px-5 py-4 text-center font-mono">
                         {c.default_moisture_percent ?? c.moisture ?? '—'}%
@@ -315,10 +304,10 @@ export default function AdminPage() {
                         {c.respiration_class || c.respirationRate || 'very_low'}
                       </td>
                       <td className="px-5 py-4 capitalize">
-                        {c.recommended_storage_type || c.storageType || 'ambient'} ({c.storageTemp ?? 20}°C)
+                        {getStorageTypeName(c.recommended_storage_type || c.storageType || 'ambient')} ({c.storageTemp ?? 20}°C)
                       </td>
                       <td className="px-5 py-4 text-center font-bold text-emerald-400">
-                        {c.base_shelf_life_days ?? c.shelfLifeDays ?? '30'} d
+                        {c.base_shelf_life_days ?? c.shelfLifeDays ?? '30'} {t('common.days')}
                       </td>
                     </tr>
                   ))
@@ -336,20 +325,20 @@ export default function AdminPage() {
             <table className="w-full text-left text-xs text-slate-300">
               <thead className="bg-slate-950/80 text-slate-400 uppercase text-[11px] font-semibold border-b border-slate-800">
                 <tr>
-                  <th className="px-5 py-3.5">Code</th>
-                  <th className="px-5 py-3.5">Material Name</th>
-                  <th className="px-5 py-3.5">Polymer Family</th>
-                  <th className="px-5 py-3.5">ASTM D3985 OTR</th>
-                  <th className="px-5 py-3.5">ASTM F1249 WVTR</th>
-                  <th className="px-5 py-3.5 text-center">Cost</th>
-                  <th className="px-5 py-3.5 text-center">Eco Score</th>
+                  <th className="px-5 py-3.5">{t('admin.col_code')}</th>
+                  <th className="px-5 py-3.5">{t('admin.col_mat_name')}</th>
+                  <th className="px-5 py-3.5">{t('admin.col_family')}</th>
+                  <th className="px-5 py-3.5">{t('admin.col_otr')}</th>
+                  <th className="px-5 py-3.5">{t('admin.col_wvtr')}</th>
+                  <th className="px-5 py-3.5 text-center">{t('admin.col_cost')}</th>
+                  <th className="px-5 py-3.5 text-center">{t('results.col_eco')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
                 {paginatedList.length === 0 ? (
                   <tr>
                     <td colSpan="7" className="px-5 py-8 text-center text-slate-400">
-                      No packaging materials match your search query.
+                      {t('admin.no_items_found')}
                     </td>
                   </tr>
                 ) : (
@@ -397,11 +386,11 @@ export default function AdminPage() {
             <table className="w-full text-left text-xs text-slate-300">
               <thead className="bg-slate-950/80 text-slate-400 uppercase text-[11px] font-semibold border-b border-slate-800">
                 <tr>
-                  <th className="px-5 py-3.5">#</th>
-                  <th className="px-5 py-3.5">Rule Identifier</th>
-                  <th className="px-5 py-3.5">Activation Trigger</th>
-                  <th className="px-5 py-3.5">Engine Action & Filtering</th>
-                  <th className="px-5 py-3.5">Scientific Domain</th>
+                  <th className="px-5 py-3.5">{t('admin.col_rule_id')}</th>
+                  <th className="px-5 py-3.5">{t('admin.col_rule_name')}</th>
+                  <th className="px-5 py-3.5">{t('admin.col_trigger')}</th>
+                  <th className="px-5 py-3.5">{t('admin.col_action')}</th>
+                  <th className="px-5 py-3.5">{t('admin.col_domain')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
@@ -434,8 +423,11 @@ export default function AdminPage() {
       {totalPages > 1 && (
         <div className="flex items-center justify-between pt-2 text-xs text-slate-400">
           <div>
-            Showing {(currentPage - 1) * itemsPerPage + 1} to{' '}
-            {Math.min(currentPage * itemsPerPage, currentList.length)} of {currentList.length} items
+            {t('admin.showing_items', {
+              start: ((currentPage - 1) * itemsPerPage + 1).toString(),
+              end: Math.min(currentPage * itemsPerPage, currentList.length).toString(),
+              total: currentList.length.toString(),
+            })}
           </div>
           <div className="flex items-center gap-1.5">
             <Button
@@ -445,7 +437,7 @@ export default function AdminPage() {
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               icon={ChevronLeft}
             >
-              Previous
+              {t('common.previous')}
             </Button>
             <span className="px-2.5 py-1 rounded bg-slate-900 border border-slate-800 text-white font-medium">
               {currentPage} / {totalPages}
@@ -458,7 +450,7 @@ export default function AdminPage() {
               icon={ChevronRight}
               iconPosition="right"
             >
-              Next
+              {t('common.next')}
             </Button>
           </div>
         </div>

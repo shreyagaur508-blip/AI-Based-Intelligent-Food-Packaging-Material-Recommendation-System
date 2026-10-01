@@ -1,12 +1,19 @@
 import React from 'react';
-import { AlertTriangle, Info, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, Info } from 'lucide-react';
+import { useTranslation } from '../../i18n';
 
 export default function DisclaimerBanner({
   compact = false,
   className = '',
-  title = 'Engineering Decision-Support Notice',
+  title,
   text,
 }) {
+  const { t } = useTranslation();
+
+  const displayTitle = title || t('common.disclaimer_title');
+  const defaultText = compact ? t('common.disclaimer_compact') : t('common.disclaimer_full');
+  const displayText = text || defaultText;
+
   if (compact) {
     return (
       <div
@@ -14,7 +21,7 @@ export default function DisclaimerBanner({
       >
         <Info className="w-4 h-4 shrink-0 text-amber-400" />
         <p className="leading-relaxed">
-          <strong>Decision-Support Notice:</strong> {text || 'PackWise AI outputs are engineering estimations based on standard food packaging barrier physics and ASTM guidelines. Laboratory validation remains mandatory prior to commercial production.'}
+          <strong>{t('common.decision_notice')}:</strong> {displayText}
         </p>
       </div>
     );
@@ -31,18 +38,14 @@ export default function DisclaimerBanner({
         <div className="space-y-1.5 flex-1">
           <div className="flex items-center gap-2">
             <h4 className="text-sm font-bold text-amber-300 tracking-wide uppercase">
-              {title}
+              {displayTitle}
             </h4>
             <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
               ASTM / Food Safety
             </span>
           </div>
           <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-            {text || (
-              <>
-                <strong>PackWise AI</strong> operates as a predictive decision-support system calculating barrier requirements (OTR, WVTR), shelf-life kinetics, and material alternatives. Outputs do <strong>not</strong> substitute for mandatory empirical shelf-life testing, microbial challenge studies, or statutory regulatory migration certifications (such as US FDA 21 CFR 177, EU 10/2011, or FSSAI).
-              </>
-            )}
+            {displayText}
           </p>
         </div>
       </div>

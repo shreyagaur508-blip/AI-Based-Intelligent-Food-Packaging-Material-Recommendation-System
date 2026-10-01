@@ -1,8 +1,20 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Package, ShieldCheck, Sparkles, Leaf, Database, ArrowUpRight } from 'lucide-react';
+import { Package, ShieldCheck, Sparkles, Leaf, Database } from 'lucide-react';
+import { useTranslation } from '../../i18n';
 
 export default function Footer() {
+  const { t, getCategoryName } = useTranslation();
+
+  const foodSectors = [
+    'Fresh Produce',
+    'Dry Crisp Foods',
+    'High-Fat Snacks',
+    'Perishable Dairy',
+    'Frozen Foods',
+    'Powders & Grains',
+  ];
+
   return (
     <footer className="border-t border-slate-800/80 bg-slate-950 text-slate-400 text-sm mt-auto">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 lg:py-16">
@@ -14,42 +26,42 @@ export default function Footer() {
                 <Package className="w-5 h-5" />
               </div>
               <span className="font-display font-extrabold text-lg text-white tracking-tight">
-                PackWise <span className="text-emerald-400">AI</span>
+                {t('nav.brand_name')} <span className="text-emerald-400">{t('nav.brand_suffix')}</span>
               </span>
             </div>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Intelligent decision-support system calculating food degradation kinetics, ASTM OTR & WVTR barrier physics, and multi-criteria packaging material optimization.
+              {t('footer.description')}
             </p>
             <div className="flex items-center gap-2 text-xs text-emerald-400 font-medium">
               <ShieldCheck className="w-4 h-4 shrink-0" />
-              <span>Food Safety & Regulatory Compliance Protocol</span>
+              <span>{t('footer.food_safety_protocol')}</span>
             </div>
           </div>
 
           {/* Quick Navigation */}
           <div>
-            <h4 className="text-white font-semibold text-sm mb-4 font-display">Navigation</h4>
+            <h4 className="text-white font-semibold text-sm mb-4 font-display">{t('footer.nav_title')}</h4>
             <ul className="space-y-2.5 text-xs">
               <li>
                 <Link to="/" className="hover:text-emerald-400 transition-colors">
-                  Home Overview
+                  {t('footer.nav_home')}
                 </Link>
               </li>
               <li>
                 <Link to="/recommend" className="hover:text-emerald-400 transition-colors flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                  Get Recommendation
+                  {t('footer.nav_recommend')}
                 </Link>
               </li>
               <li>
                 <Link to="/results" className="hover:text-emerald-400 transition-colors">
-                  Recommendation Results
+                  {t('footer.nav_results')}
                 </Link>
               </li>
               <li>
                 <Link to="/admin" className="hover:text-emerald-400 transition-colors flex items-center gap-1.5">
                   <Database className="w-3.5 h-3.5 text-slate-400" />
-                  Admin Dashboard
+                  {t('footer.nav_admin')}
                 </Link>
               </li>
             </ul>
@@ -57,7 +69,7 @@ export default function Footer() {
 
           {/* Scientific Standards */}
           <div>
-            <h4 className="text-white font-semibold text-sm mb-4 font-display">Engineering Standards</h4>
+            <h4 className="text-white font-semibold text-sm mb-4 font-display">{t('footer.standards_title')}</h4>
             <ul className="space-y-2.5 text-xs text-slate-300">
               <li className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></span>
@@ -80,31 +92,29 @@ export default function Footer() {
 
           {/* Supported Commodities Preview */}
           <div>
-            <h4 className="text-white font-semibold text-sm mb-4 font-display">Target Food Sectors</h4>
+            <h4 className="text-white font-semibold text-sm mb-4 font-display">{t('footer.sectors_title')}</h4>
             <div className="flex flex-wrap gap-1.5 text-[11px]">
-              {['Fresh Produce', 'Crisp Snacks', 'Roasted Nuts', 'Dairy & Paneer', 'Frozen Foods', 'Milk Powder', 'Grains & Flour'].map(
-                (cat) => (
-                  <span
-                    key={cat}
-                    className="px-2 py-1 bg-slate-900 border border-slate-800 rounded-lg text-slate-300"
-                  >
-                    {cat}
-                  </span>
-                )
-              )}
+              {foodSectors.map((cat) => (
+                <span
+                  key={cat}
+                  className="px-2 py-1 bg-slate-900 border border-slate-800 rounded-lg text-slate-300"
+                >
+                  {getCategoryName(cat)}
+                </span>
+              ))}
             </div>
             <p className="text-[11px] text-slate-500 mt-4 leading-relaxed">
-              Designed for farmers, food processors, packaging engineers, and agricultural researchers.
+              {t('footer.sectors_desc')}
             </p>
           </div>
         </div>
 
         {/* Bottom copyright & attribution */}
         <div className="pt-8 mt-8 border-t border-slate-900 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
-          <p>© {new Date().getFullYear()} PackWise AI — Intelligent Food Packaging Material Recommendation System.</p>
+          <p>{t('footer.copyright', { year: new Date().getFullYear().toString() })}</p>
           <p className="flex items-center gap-1.5 text-slate-400">
             <Leaf className="w-3.5 h-3.5 text-emerald-400" />
-            Supporting circular economy & food waste reduction
+            {t('footer.circular_economy')}
           </p>
         </div>
       </div>

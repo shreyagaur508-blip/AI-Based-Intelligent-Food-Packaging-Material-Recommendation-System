@@ -4,7 +4,6 @@ import {
   Sparkles,
   Layers,
   Thermometer,
-  Droplets,
   Truck,
   Leaf,
   Package,
@@ -12,30 +11,18 @@ import {
   RotateCcw,
   Sliders,
   CheckCircle2,
-  HelpCircle,
-  FlaskConical,
-  ChevronDown,
-  ChevronUp,
-  Info,
-  ShieldCheck,
   Zap,
-  Clock,
-  Wind
 } from 'lucide-react';
 import Button from '../components/common/Button';
 import Card from '../components/common/Card';
 import Badge from '../components/common/Badge';
 import Input from '../components/common/Input';
 import Select from '../components/common/Select';
-import HelpTooltip from '../components/common/HelpTooltip';
-import SectionHeader from '../components/common/SectionHeader';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import DisclaimerBanner from '../components/common/DisclaimerBanner';
 import {
   COMMODITY_CATEGORIES,
   STORAGE_TYPES,
-  OIL_FAT_LEVELS,
-  RESPIRATION_RATES,
   TRANSPORTATION_CONDITIONS,
   SUSTAINABILITY_PREFERENCES,
   PACKAGING_FORMATS,
@@ -46,6 +33,7 @@ import {
   RESPIRATION_CATEGORY_OPTIONS
 } from '../data/mockData';
 import { generateRecommendation, fetchCommodities } from '../api/recommendationApi';
+import { useTranslation } from '../i18n';
 
 const SIMPLE_SHELF_LIFE_OPTIONS = [
   { id: 'short', label: 'Short (≤7 days) — Fresh greens, berries, bread' },
@@ -84,15 +72,16 @@ const INITIAL_FORM_STATE = {
 
 export default function RecommendPage() {
   const navigate = useNavigate();
+  const { t, getCommodityName, getCategoryName, getStorageTypeName } = useTranslation();
+
   const [isAdvancedMode, setIsAdvancedMode] = useState(false);
   const [formData, setFormData] = useState(INITIAL_FORM_STATE);
   const [errors, setErrors] = useState({});
   const [apiError, setApiError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedPresetId, setSelectedPresetId] = useState('tomato');
-  const [presetNotice, setPresetNotice] = useState('Loaded: Tomato preset defaults');
+  const [presetNotice, setPresetNotice] = useState(t('form.loaded_preset', { name: 'Tomato' }));
   const [dbCommodities, setDbCommodities] = useState(PRESET_COMMODITIES);
-  const [isAdvancedSectionOpen, setIsAdvancedSectionOpen] = useState(true);
 
   // Load database commodities on mount
   useEffect(() => {
@@ -198,14 +187,14 @@ export default function RecommendPage() {
 
     setErrors({});
     setApiError(null);
-    setPresetNotice(`Loaded preset: ${preset.name} (${preset.badge || preset.category || ''})`);
+    setPresetNotice(t('form.loaded_preset', { name: getCommodityName(preset.name) }));
   };
 
   const validateForm = () => {
     const newErrors = {};
 
     if (!formData.commodityName.trim()) {
-      newErrors.commodityName = 'Please enter or select a commodity name.';
+      newErrors.commodityName = t('form.commodity_helper');
     }
 
     if (isAdvancedMode) {
@@ -284,7 +273,7 @@ export default function RecommendPage() {
     setErrors({});
     setApiError(null);
     setSelectedPresetId('tomato');
-    setPresetNotice('Form reset to default.');
+    setPresetNotice(t('form.form_reset_notice'));
     window.scrollTo({ top: 100, behavior: 'smooth' });
   };
 
@@ -294,14 +283,14 @@ export default function RecommendPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-6">
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <Badge variant="brand" size="sm">Decision Wizard</Badge>
-            <span className="text-xs text-slate-400">Phase 8 UI Redesign</span>
+            <Badge variant="brand" size="sm">{t('form.badge')}</Badge>
+            <span className="text-xs text-slate-400">{t('form.badge_sub')}</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            Packaging Recommendation Form
+            {t('form.title')}
           </h1>
           <p className="text-sm text-slate-300 mt-1">
-            Configure food preservation parameters to calculate ASTM barrier physics and optimal materials.
+            {t('form.subtitle')}
           </p>
         </div>
 
@@ -316,7 +305,7 @@ export default function RecommendPage() {
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            Simple Mode
+            {t('form.simple_mode')}
           </button>
           <button
             type="button"
@@ -328,7 +317,7 @@ export default function RecommendPage() {
             }`}
           >
             <Sliders className="w-3.5 h-3.5" />
-            <span>Advanced Mode</span>
+            <span>{t('form.advanced_mode')}</span>
           </button>
         </div>
       </div>
@@ -338,7 +327,7 @@ export default function RecommendPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-300">
             <Zap className="w-4 h-4 text-emerald-400" />
-            <span>Quick Commodity Presets</span>
+            <span>{t('form.quick_presets')}</span>
           </div>
           {presetNotice && (
             <span className="text-xs text-emerald-300 font-medium bg-emerald-500/10 px-2.5 py-0.5 rounded-md border border-emerald-500/20">
@@ -361,7 +350,7 @@ export default function RecommendPage() {
                     : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-900'
                 }`}
               >
-                <span>{preset.name}</span>
+                <span>{getCommodityName(preset.name)}</span>
                 {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
               </button>
             );
@@ -375,14 +364,14 @@ export default function RecommendPage() {
           <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
           <div className="space-y-2 flex-1">
             <h4 className="text-sm font-bold text-rose-300">
-              Backend Connection Error
+              {t('form.backend_error_title')}
             </h4>
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
               {apiError}
             </p>
             <div className="pt-1 flex items-center gap-3">
               <Button size="sm" variant="secondary" onClick={handleSubmit}>
-                Retry Recommendation
+                {t('form.btn_retry')}
               </Button>
             </div>
           </div>
@@ -392,8 +381,8 @@ export default function RecommendPage() {
       {/* Loading State */}
       {isSubmitting ? (
         <LoadingSpinner
-          title={`Evaluating packaging barriers for ${formData.commodityName || 'commodity'}...`}
-          subtitle="Calculating ASTM D3985 OTR, ASTM F1249 WVTR thresholds, MAP gas mixtures, and sustainability ranking."
+          title={t('common.calculating')}
+          subtitle={t('common.evaluating_sub')}
         />
       ) : (
         <form onSubmit={handleSubmit} className="space-y-8">
@@ -404,8 +393,8 @@ export default function RecommendPage() {
                 <Package className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-white">1. Product Details</h2>
-                <p className="text-xs text-slate-400">Basic food commodity identification and chemical characteristics.</p>
+                <h2 className="text-lg font-bold text-white">{t('form.sec_1_title')}</h2>
+                <p className="text-xs text-slate-400">{t('form.sec_1_desc')}</p>
               </div>
             </div>
 
@@ -413,25 +402,25 @@ export default function RecommendPage() {
               {/* Commodity Name */}
               <Input
                 name="commodityName"
-                label="Commodity Name"
-                placeholder="e.g., Fresh Tomato, Potato Chips, Roasted Almonds"
+                label={t('form.commodity_label')}
+                placeholder={t('form.commodity_placeholder')}
                 value={formData.commodityName}
                 onChange={handleChange}
                 required
                 error={errors.commodityName}
-                helperText="Enter the commercial food product or raw produce name."
-                tooltip="The target food item to be packaged. Used for microbial, respiratory, and lipid risk identification."
+                helperText={t('form.commodity_helper')}
+                tooltip={t('form.commodity_tooltip')}
               />
 
               {/* Food Category */}
               <Select
                 name="category"
-                label="Food Category"
+                label={t('form.category_label')}
                 value={formData.category}
                 onChange={handleChange}
-                options={COMMODITY_CATEGORIES.map((c) => ({ value: c, label: c }))}
-                helperText="Broad classification determines baseline degradation pathways."
-                tooltip="Categorization guides default permeability limits and mechanical requirements."
+                options={COMMODITY_CATEGORIES.map((c) => ({ value: c, label: getCategoryName(c) }))}
+                helperText={t('form.category_helper')}
+                tooltip={t('form.category_tooltip')}
               />
             </div>
 
@@ -439,8 +428,8 @@ export default function RecommendPage() {
             {isAdvancedMode && (
               <div className="pt-4 border-t border-slate-800/80 space-y-5">
                 <div className="flex items-center gap-2">
-                  <Badge variant="teal" size="xs">Physicochemical Parameters</Badge>
-                  <span className="text-xs text-slate-400">Chemical and biological degradation vectors</span>
+                  <Badge variant="teal" size="xs">{t('form.physicochemical_badge')}</Badge>
+                  <span className="text-xs text-slate-400">{t('form.physicochemical_desc')}</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -448,12 +437,12 @@ export default function RecommendPage() {
                   <div>
                     <Select
                       name="moistureCategory"
-                      label="Moisture Content Level"
+                      label={t('form.moisture_label')}
                       value={formData.moistureCategory}
                       onChange={handleChange}
                       options={MOISTURE_CATEGORY_OPTIONS}
-                      helperText="Governs critical water vapor transmission (WVTR) limit."
-                      tooltip="High moisture foods require breathability or microbial barrier; dry foods require high water vapor barrier to prevent sogginess."
+                      helperText={t('form.moisture_helper')}
+                      tooltip={t('form.moisture_tooltip')}
                     />
                     {formData.moistureCategory === 'exact' && (
                       <div className="mt-3">
@@ -463,12 +452,12 @@ export default function RecommendPage() {
                           step="0.1"
                           min="0"
                           max="100"
-                          label="Exact Moisture Percentage (%)"
+                          label={t('form.exact_moisture_label')}
                           value={formData.moisture}
                           onChange={handleChange}
                           suffix="%"
                           error={errors.moisture}
-                          helperText="Laboratory measured water content by weight."
+                          helperText={t('form.exact_moisture_helper')}
                         />
                       </div>
                     )}
@@ -478,12 +467,12 @@ export default function RecommendPage() {
                   <div>
                     <Select
                       name="phCategory"
-                      label="Acidity / pH Level"
+                      label={t('form.ph_label')}
                       value={formData.phCategory}
                       onChange={handleChange}
                       options={PH_CATEGORY_OPTIONS}
-                      helperText="Low-acid foods (pH > 4.6) require stringent pathogen defense."
-                      tooltip="Determines susceptibility to bacterial pathogens (e.g. Clostridium botulinum) and chemical polymer corrosion."
+                      helperText={t('form.ph_helper')}
+                      tooltip={t('form.ph_tooltip')}
                     />
                     {formData.phCategory === 'exact' && (
                       <div className="mt-3">
@@ -493,12 +482,12 @@ export default function RecommendPage() {
                           step="0.1"
                           min="0"
                           max="14"
-                          label="Exact Product pH (0 - 14)"
+                          label={t('form.exact_ph_label')}
                           value={formData.pH}
                           onChange={handleChange}
                           suffix="pH"
                           error={errors.pH}
-                          helperText="Laboratory measured acidity value."
+                          helperText={t('form.exact_ph_helper')}
                         />
                       </div>
                     )}
@@ -508,12 +497,12 @@ export default function RecommendPage() {
                   <div>
                     <Select
                       name="oilFatCategory"
-                      label="Oil & Fat Content (Lipid Risk)"
+                      label={t('form.oil_fat_label')}
                       value={formData.oilFatCategory}
                       onChange={handleChange}
                       options={OIL_FAT_CATEGORY_OPTIONS}
-                      helperText="High-fat items require strict oxygen (OTR) and light barriers."
-                      tooltip="High lipids accelerate oxidative rancidity, off-odors, and loss of nutritional vitamins."
+                      helperText={t('form.oil_fat_helper')}
+                      tooltip={t('form.oil_fat_tooltip')}
                     />
                   </div>
 
@@ -521,12 +510,12 @@ export default function RecommendPage() {
                   <div>
                     <Select
                       name="respirationCategory"
-                      label="Respiration Rate (Fresh Produce)"
+                      label={t('form.respiration_label')}
                       value={formData.respirationCategory}
                       onChange={handleChange}
                       options={RESPIRATION_CATEGORY_OPTIONS}
-                      helperText="Respiring produce requires breathable EMAP films."
-                      tooltip="Living produce consumes O2 and emits CO2. Hermetic barrier films without micro-perforations cause anaerobic fermentation and ethanol off-flavor."
+                      helperText={t('form.respiration_helper')}
+                      tooltip={t('form.respiration_tooltip')}
                     />
                   </div>
                 </div>
@@ -541,14 +530,14 @@ export default function RecommendPage() {
                 <Thermometer className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-white">2. Storage & Distribution</h2>
-                <p className="text-xs text-slate-400">Thermal environment, transit logistics, and shelf-life requirements.</p>
+                <h2 className="text-lg font-bold text-white">{t('form.sec_2_title')}</h2>
+                <p className="text-xs text-slate-400">{t('form.sec_2_desc')}</p>
               </div>
             </div>
 
             {/* Storage Condition Selection Cards */}
             <div className="space-y-2">
-              <label className="form-label">Target Storage Environment</label>
+              <label className="form-label">{t('form.storage_label')}</label>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {STORAGE_TYPES.map((st) => {
                   const isSelected = formData.storageType === st.id;
@@ -566,7 +555,7 @@ export default function RecommendPage() {
                         <span className="text-xs font-bold text-white uppercase tracking-wider">{st.id}</span>
                         {isSelected && <CheckCircle2 className="w-4 h-4 text-blue-400" />}
                       </div>
-                      <div className="text-xs text-slate-300 font-medium">{st.label}</div>
+                      <div className="text-xs text-slate-300 font-medium">{getStorageTypeName(st.id)}</div>
                       <div className="text-[11px] text-slate-400 mt-2">
                         Default: {st.defaultTemp}°C • {st.defaultRH}% RH
                       </div>
@@ -582,22 +571,22 @@ export default function RecommendPage() {
                 <>
                   <Select
                     name="shelfLifeCategory"
-                    label="Desired Shelf-Life Target"
+                    label={t('form.shelf_life_target_label')}
                     value={formData.shelfLifeCategory}
                     onChange={handleChange}
                     options={SIMPLE_SHELF_LIFE_OPTIONS}
-                    helperText="Select the commercial shelf-life expectation."
-                    tooltip="Determines required barrier thickness and gas barrier transmission resistance."
+                    helperText={t('form.shelf_life_target_helper')}
+                    tooltip={t('form.shelf_life_target_tooltip')}
                   />
 
                   <Select
                     name="transportCategory"
-                    label="Logistics & Distribution Range"
+                    label={t('form.logistics_range_label')}
                     value={formData.transportCategory}
                     onChange={handleChange}
                     options={SIMPLE_TRANSPORT_OPTIONS}
-                    helperText="Defines puncture and vibration strength criteria."
-                    tooltip="Longer transit paths require stronger tensile modulus and pinhole fatigue resistance."
+                    helperText={t('form.logistics_range_helper')}
+                    tooltip={t('form.logistics_range_tooltip')}
                   />
                 </>
               ) : (
@@ -607,21 +596,21 @@ export default function RecommendPage() {
                     type="number"
                     min="1"
                     max="1000"
-                    label="Desired Shelf Life (Days)"
+                    label={t('form.shelf_life_days_label')}
                     value={formData.shelfLifeDays}
                     onChange={handleChange}
-                    suffix="days"
+                    suffix={t('common.days')}
                     error={errors.shelfLifeDays}
-                    helperText="Target shelf life under specified storage conditions."
+                    helperText={t('form.shelf_life_days_helper')}
                   />
 
                   <Select
                     name="transportCondition"
-                    label="Transportation Condition"
+                    label={t('form.transport_condition_label')}
                     value={formData.transportCondition}
                     onChange={handleChange}
-                    options={TRANSPORTATION_CONDITIONS.map((t) => ({ value: t, label: t }))}
-                    helperText="Supply chain handling and climate exposure profile."
+                    options={TRANSPORTATION_CONDITIONS.map((tCond) => ({ value: tCond, label: tCond }))}
+                    helperText={t('form.transport_condition_helper')}
                   />
                 </>
               )}
@@ -634,11 +623,11 @@ export default function RecommendPage() {
                   name="storageTemp"
                   type="number"
                   step="0.5"
-                  label="Storage Temperature (°C)"
+                  label={t('form.storage_temp_label')}
                   value={formData.storageTemp}
                   onChange={handleChange}
                   suffix="°C"
-                  helperText="Ambient or cold chain set point."
+                  helperText={t('form.storage_temp_helper')}
                 />
 
                 <Input
@@ -646,11 +635,11 @@ export default function RecommendPage() {
                   type="number"
                   min="10"
                   max="100"
-                  label="Relative Humidity (%)"
+                  label={t('form.relative_humidity_label')}
                   value={formData.relativeHumidity}
                   onChange={handleChange}
                   suffix="% RH"
-                  helperText="Environmental moisture vapor pressure."
+                  helperText={t('form.relative_humidity_helper')}
                 />
 
                 <Input
@@ -658,11 +647,11 @@ export default function RecommendPage() {
                   type="number"
                   min="1"
                   max="60"
-                  label="Transit Duration (Days)"
+                  label={t('form.transit_days_label')}
                   value={formData.transportDays}
                   onChange={handleChange}
-                  suffix="days"
-                  helperText="Duration in logistics freight."
+                  suffix={t('common.days')}
+                  helperText={t('form.transit_days_helper')}
                 />
               </div>
             )}
@@ -675,8 +664,8 @@ export default function RecommendPage() {
                 <Leaf className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-white">3. Packaging Format & Sustainability</h2>
-                <p className="text-xs text-slate-400">Structural form factor and circular economy priorities.</p>
+                <h2 className="text-lg font-bold text-white">{t('form.sec_3_title')}</h2>
+                <p className="text-xs text-slate-400">{t('form.sec_3_desc')}</p>
               </div>
             </div>
 
@@ -684,23 +673,23 @@ export default function RecommendPage() {
               {/* Packaging Format */}
               <Select
                 name="packagingFormat"
-                label="Packaging Format Preference"
+                label={t('form.format_label')}
                 value={formData.packagingFormat}
                 onChange={handleChange}
                 options={PACKAGING_FORMATS.map((f) => ({ value: f, label: f }))}
-                helperText="Physical style and machinery sealing configuration."
-                tooltip="Affects surface area to volume ratio, seal width, and gas flush headspace."
+                helperText={t('form.format_helper')}
+                tooltip={t('form.format_tooltip')}
               />
 
               {/* Sustainability Preference */}
               <Select
                 name="sustainabilityPreference"
-                label="Sustainability Priority (MCDA)"
+                label={t('form.sustainability_label')}
                 value={formData.sustainabilityPreference}
                 onChange={handleChange}
                 options={SUSTAINABILITY_PREFERENCES.map((s) => ({ value: s.id, label: s.label }))}
-                helperText="Guides weighting between recyclability, bio-polymers, and cost."
-                tooltip="PackWise AI multi-criteria decision analysis incorporates environmental impact scores."
+                helperText={t('form.sustainability_helper')}
+                tooltip={t('form.sustainability_tooltip')}
               />
             </div>
           </Card>
@@ -714,7 +703,7 @@ export default function RecommendPage() {
               onClick={handleReset}
               className="w-full sm:w-auto"
             >
-              Reset Form
+              {t('form.btn_reset')}
             </Button>
 
             <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -726,7 +715,7 @@ export default function RecommendPage() {
                 isLoading={isSubmitting}
                 className="w-full sm:w-auto shadow-xl shadow-emerald-950/60"
               >
-                Get Recommendation
+                {t('form.btn_submit')}
               </Button>
             </div>
           </div>
