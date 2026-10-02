@@ -21,6 +21,12 @@ class Settings(BaseModel):
     # Database connection URL
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./packwise.db")
 
+    # LLM Provider Configuration for Voice/Text Chat Assistant
+    GEMINI_API_KEY: Union[str, None] = os.getenv("GEMINI_API_KEY", os.getenv("GOOGLE_API_KEY", None))
+    OPENAI_API_KEY: Union[str, None] = os.getenv("OPENAI_API_KEY", None)
+    GROQ_API_KEY: Union[str, None] = os.getenv("GROQ_API_KEY", None)
+    LLM_MODEL: str = os.getenv("LLM_MODEL", "gemini-1.5-flash")
+
     # CORS Allowed Origins
     CORS_ORIGINS: List[str] = [
         "http://localhost:5173",

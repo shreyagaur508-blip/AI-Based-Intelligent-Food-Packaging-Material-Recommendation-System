@@ -7,7 +7,9 @@ import {
   Menu,
   X,
   Home,
-  BarChart3
+  BarChart3,
+  Mic,
+  MessageSquare
 } from 'lucide-react';
 import Button from '../common/Button';
 import LanguageSelector from '../common/LanguageSelector';
@@ -21,6 +23,7 @@ export default function Navbar() {
   const navLinks = [
     { name: t('nav.home'), path: '/', icon: Home },
     { name: t('nav.recommend'), path: '/recommend', icon: Sparkles },
+    { name: t('nav.chat'), path: '/chat', icon: Mic },
     { name: t('nav.results'), path: '/results', icon: BarChart3 },
     { name: t('nav.admin'), path: '/admin', icon: Database },
   ];

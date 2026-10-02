@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Sparkles,
   Layers,
@@ -72,6 +72,7 @@ const INITIAL_FORM_STATE = {
 
 export default function RecommendPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { t, getCommodityName, getCategoryName, getStorageTypeName } = useTranslation();
 
   const [isAdvancedMode, setIsAdvancedMode] = useState(false);
@@ -93,6 +94,34 @@ export default function RecommendPage() {
     }
     loadComms();
   }, []);
+
+  // Handle prefill from AI Voice Assistant
+  useEffect(() => {
+    const prefill = location.state?.prefill;
+    if (prefill && prefill.commodity_name) {
+      const commName = prefill.commodity_name;
+      // Search matching preset
+      const match = PRESET_COMMODITIES.find(
+        (p) => p.name.toLowerCase() === commName.toLowerCase() ||
+               p.id.toLowerCase() === commName.toLowerCase().replace(/\s+/g, '_')
+      );
+
+      if (match) {
+        loadPreset(match);
+      }
+
+      // Overwrite any explicit suggested parameters
+      setFormData((prev) => ({
+        ...prev,
+        commodityName: commName,
+        category: prefill.category || prev.category,
+        storageType: prefill.storage_type ? prefill.storage_type.toLowerCase() : prev.storageType,
+        shelfLifeDays: prefill.desired_shelf_life_days ? prefill.desired_shelf_life_days.toString() : prev.shelfLifeDays,
+      }));
+
+      setPresetNotice(`✨ Pre-filled parameters from PackWise AI Assistant for ${commName}`);
+    }
+  }, [location.state]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;

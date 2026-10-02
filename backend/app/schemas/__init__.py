@@ -34,6 +34,13 @@ from app.schemas.recommendation import (
     RecommendationResponse,
 )
 
+from app.schemas.chat import (
+    ChatMessage,
+    ChatRequest,
+    ChatResponse,
+    SuggestedFormValues,
+)
+
 __all__ = [
     "CommodityBase",
     "CommodityCreate",
@@ -60,4 +67,8 @@ __all__ = [
     "DisqualifiedMaterial",
     "PlainLanguageSummary",
     "RecommendationResponse",
+    "ChatMessage",
+    "ChatRequest",
+    "ChatResponse",
+    "SuggestedFormValues",
 ]
