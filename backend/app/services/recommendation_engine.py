@@ -91,8 +91,6 @@ RESPIRATION_CATEGORY_MAP: Dict[str, str] = {
     "moderate": "medium",
     "high": "high",        # Banana, berries
     "very_high": "very_high", # Spinach, mushrooms, leafy greens
-    "i_dont_know": "very_low",
-    "dont_know": "very_low",
 }
 
 SHELF_LIFE_CATEGORY_MAP: Dict[str, int] = {

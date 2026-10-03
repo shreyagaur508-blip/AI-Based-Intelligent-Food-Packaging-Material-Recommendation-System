@@ -2,9 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Sparkles,
-  Layers,
   Thermometer,
-  Truck,
   Leaf,
   Package,
   AlertCircle,
@@ -12,6 +10,10 @@ import {
   Sliders,
   CheckCircle2,
   Zap,
+  FlaskConical,
+  Truck,
+  Layers,
+  HelpCircle
 } from 'lucide-react';
 import Button from '../components/common/Button';
 import Card from '../components/common/Card';
@@ -35,17 +37,6 @@ import {
 import { generateRecommendation, fetchCommodities } from '../api/recommendationApi';
 import { useTranslation } from '../i18n';
 
-const SIMPLE_SHELF_LIFE_OPTIONS = [
-  { id: 'short', label: 'Short (≤7 days) — Fresh greens, berries, bread' },
-  { id: 'medium', label: 'Medium (8–30 days) — Fresh tomatoes, bananas, cheese' },
-  { id: 'long', label: 'Long (>30 days) — Dry snacks, chips, grains, powders, frozen' },
-];
-
-const SIMPLE_TRANSPORT_OPTIONS = [
-  { id: 'local', label: 'Local Distribution (1–2 days short haul)' },
-  { id: 'long_distance', label: 'Long Distance / Cold Chain Transit (3–7+ days)' },
-];
-
 const INITIAL_FORM_STATE = {
   commodityName: 'Tomato',
   category: 'Fresh Produce',
@@ -60,13 +51,13 @@ const INITIAL_FORM_STATE = {
   sustainabilityPreference: 'medium',
   packagingFormat: 'Pillow Pouch',
   // Advanced fields
-  moistureCategory: 'very_moist',
+  moistureCategory: 'dont_know',
   moisture: '94.0',
-  phCategory: 'acidic',
+  phCategory: 'dont_know',
   pH: '4.3',
-  oilFatCategory: 'very_low',
+  oilFatCategory: 'dont_know',
   oilFatLevel: 'none',
-  respirationCategory: 'medium',
+  respirationCategory: 'dont_know',
   respirationRate: 'moderate',
 };
 
@@ -152,53 +143,22 @@ export default function RecommendPage() {
     setSelectedPresetId(presetId);
 
     const moistureVal = (preset.default_moisture_percent ?? preset.moisture ?? 15.0).toString();
-    const moistureNum = parseFloat(moistureVal);
-    let mCat = 'moist';
-    if (!isNaN(moistureNum)) {
-      if (moistureNum <= 10) mCat = 'very_dry';
-      else if (moistureNum <= 30) mCat = 'dry';
-      else if (moistureNum <= 70) mCat = 'moist';
-      else mCat = 'very_moist';
-    }
-
     const phVal = (preset.default_ph ?? preset.pH ?? 6.0).toString();
-    const phNum = parseFloat(phVal);
-    let pCat = 'neutral';
-    if (!isNaN(phNum)) {
-      if (phNum <= 4.6) pCat = 'acidic';
-      else if (phNum <= 7.0) pCat = 'neutral';
-      else pCat = 'alkaline';
-    }
-
     const rawOil = (preset.oil_fat_level || preset.oilFatLevel || 'low').toLowerCase();
-    let oCat = 'low';
-    if (rawOil === 'none' || rawOil === 'very_low') oCat = 'very_low';
-    else if (rawOil === 'low') oCat = 'low';
-    else if (rawOil === 'moderate' || rawOil === 'medium') oCat = 'medium';
-    else if (rawOil === 'high') oCat = 'high';
-    else if (rawOil === 'very_high') oCat = 'very_high';
-
     const rawResp = (preset.respiration_class || preset.respirationRate || 'very_low').toLowerCase();
-    let rCat = 'very_low';
-    if (rawResp === 'none' || rawResp === 'zero' || rawResp === 'very_low') rCat = 'very_low';
-    else if (rawResp === 'low') rCat = 'low';
-    else if (rawResp === 'moderate' || rawResp === 'medium') rCat = 'medium';
-    else if (rawResp === 'high') rCat = 'high';
-    else if (rawResp === 'very_high') rCat = 'very_high';
-
     const shelfLifeNum = preset.base_shelf_life_days ?? preset.shelfLifeDays ?? 30;
 
     setFormData((prev) => ({
       ...prev,
       commodityName: preset.name,
       category: preset.category || 'Other / Custom',
-      moistureCategory: mCat,
+      moistureCategory: 'dont_know',
       moisture: moistureVal,
-      oilFatCategory: oCat,
+      oilFatCategory: 'dont_know',
       oilFatLevel: rawOil,
-      phCategory: pCat,
+      phCategory: 'dont_know',
       pH: phVal,
-      respirationCategory: rCat,
+      respirationCategory: 'dont_know',
       respirationRate: rawResp,
       shelfLifeDays: shelfLifeNum.toString(),
       storageType: preset.recommended_storage_type || preset.storageType || 'ambient',
@@ -222,28 +182,49 @@ export default function RecommendPage() {
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.commodityName.trim()) {
-      newErrors.commodityName = t('form.commodity_helper');
+    if (!formData.commodityName || !formData.commodityName.trim()) {
+      newErrors.commodityName = t('validation.commodity_required');
     }
 
     if (isAdvancedMode) {
       if (formData.moistureCategory === 'exact') {
         const moistureNum = parseFloat(formData.moisture);
         if (isNaN(moistureNum) || moistureNum < 0 || moistureNum > 100) {
-          newErrors.moisture = 'Moisture must be between 0% and 100%.';
+          newErrors.moisture = t('validation.moisture_range');
         }
       }
 
       if (formData.phCategory === 'exact') {
         const phNum = parseFloat(formData.pH);
         if (isNaN(phNum) || phNum < 0 || phNum > 14) {
-          newErrors.pH = 'pH must be between 0.0 and 14.0.';
+          newErrors.pH = t('validation.ph_range');
         }
       }
 
       const shelfLifeNum = parseInt(formData.shelfLifeDays, 10);
       if (isNaN(shelfLifeNum) || shelfLifeNum <= 0) {
-        newErrors.shelfLifeDays = 'Please enter a valid target shelf-life in days.';
+        newErrors.shelfLifeDays = t('validation.shelf_life_invalid');
+      }
+
+      if (formData.storageTemp !== '' && formData.storageTemp !== undefined) {
+        const tempNum = parseFloat(formData.storageTemp);
+        if (isNaN(tempNum)) {
+          newErrors.storageTemp = t('validation.storage_temp_invalid');
+        }
+      }
+
+      if (formData.relativeHumidity !== '' && formData.relativeHumidity !== undefined) {
+        const rhNum = parseFloat(formData.relativeHumidity);
+        if (isNaN(rhNum) || rhNum < 10 || rhNum > 100) {
+          newErrors.relativeHumidity = t('validation.relative_humidity_invalid');
+        }
+      }
+
+      if (formData.transportDays !== '' && formData.transportDays !== undefined) {
+        const tDays = parseInt(formData.transportDays, 10);
+        if (isNaN(tDays) || tDays <= 0) {
+          newErrors.transportDays = t('validation.transit_days_invalid');
+        }
       }
     }
 
@@ -268,7 +249,7 @@ export default function RecommendPage() {
         ...formData,
         isSimpleMode: isSimple,
         simple_mode: isSimple,
-        use_defaults: isSimple,
+        use_defaults: true,
       };
 
       // Call FastAPI recommendation engine
@@ -306,6 +287,44 @@ export default function RecommendPage() {
     window.scrollTo({ top: 100, behavior: 'smooth' });
   };
 
+  // Translated option arrays
+  const simpleShelfLifeOptions = [
+    { value: 'short', label: t('form.shelf_life_short') },
+    { value: 'medium', label: t('form.shelf_life_medium') },
+    { value: 'long', label: t('form.shelf_life_long') },
+  ];
+
+  const simpleTransportOptions = [
+    { value: 'local', label: t('form.transport_local') },
+    { value: 'long_distance', label: t('form.transport_long_distance') },
+  ];
+
+  const simpleSustainabilityOptions = [
+    { value: 'low', label: t('form.sust_low') },
+    { value: 'medium', label: t('form.sust_medium') },
+    { value: 'high', label: t('form.sust_high') },
+  ];
+
+  const moistureOptions = MOISTURE_CATEGORY_OPTIONS.map((opt) => ({
+    value: opt.value,
+    label: opt.value === 'dont_know' ? t('form.opt_dont_know') : opt.label,
+  }));
+
+  const phOptions = PH_CATEGORY_OPTIONS.map((opt) => ({
+    value: opt.value,
+    label: opt.value === 'dont_know' ? t('form.opt_dont_know') : opt.label,
+  }));
+
+  const oilFatOptions = OIL_FAT_CATEGORY_OPTIONS.map((opt) => ({
+    value: opt.value,
+    label: opt.value === 'dont_know' ? t('form.opt_dont_know') : opt.label,
+  }));
+
+  const respirationOptions = RESPIRATION_CATEGORY_OPTIONS.map((opt) => ({
+    value: opt.value,
+    label: opt.value === 'dont_know' ? t('form.opt_dont_know') : opt.label,
+  }));
+
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-8">
       {/* Header & Mode Switcher */}
@@ -323,15 +342,15 @@ export default function RecommendPage() {
           </p>
         </div>
 
-        {/* Simple vs Advanced Mode Toggle */}
-        <div className="flex items-center p-1 bg-slate-900 border border-slate-800 rounded-xl shrink-0 self-start sm:self-center">
+        {/* Simple vs Advanced Mode Toggle with new explicit farmer/lab labels */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center p-1.5 bg-slate-900/90 border border-slate-800 rounded-2xl shadow-inner gap-1.5 shrink-0 self-start sm:self-center">
           <button
             type="button"
             onClick={() => setIsAdvancedMode(false)}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all text-left sm:text-center ${
               !isAdvancedMode
-                ? 'bg-emerald-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-emerald-600 text-white shadow-md ring-1 ring-emerald-400/30 font-bold'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
             }`}
           >
             {t('form.simple_mode')}
@@ -339,10 +358,10 @@ export default function RecommendPage() {
           <button
             type="button"
             onClick={() => setIsAdvancedMode(true)}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+            className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
               isAdvancedMode
-                ? 'bg-emerald-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-emerald-600 text-white shadow-md ring-1 ring-emerald-400/30 font-bold'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
             }`}
           >
             <Sliders className="w-3.5 h-3.5" />
@@ -352,7 +371,7 @@ export default function RecommendPage() {
       </div>
 
       {/* Preset Quick Select Bar */}
-      <Card className="p-4 sm:p-5 border-slate-800/90 bg-slate-900/60">
+      <Card className="p-4 sm:p-5 border-slate-800/90 bg-slate-900/60 shadow-lg">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-300">
             <Zap className="w-4 h-4 text-emerald-400" />
@@ -415,10 +434,10 @@ export default function RecommendPage() {
         />
       ) : (
         <form onSubmit={handleSubmit} className="space-y-8">
-          {/* 1. PRODUCT DETAILS CARD */}
+          {/* SECTION 1: PRODUCT DETAILS */}
           <Card className="p-6 sm:p-8 space-y-6">
             <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
-              <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
                 <Package className="w-5 h-5" />
               </div>
               <div>
@@ -427,7 +446,7 @@ export default function RecommendPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <div className={`grid grid-cols-1 ${isAdvancedMode ? 'sm:grid-cols-2' : ''} gap-5`}>
               {/* Commodity Name */}
               <Input
                 name="commodityName"
@@ -441,121 +460,25 @@ export default function RecommendPage() {
                 tooltip={t('form.commodity_tooltip')}
               />
 
-              {/* Food Category */}
-              <Select
-                name="category"
-                label={t('form.category_label')}
-                value={formData.category}
-                onChange={handleChange}
-                options={COMMODITY_CATEGORIES.map((c) => ({ value: c, label: getCategoryName(c) }))}
-                helperText={t('form.category_helper')}
-                tooltip={t('form.category_tooltip')}
-              />
+              {/* Food Category - ONLY in Advanced Mode */}
+              {isAdvancedMode && (
+                <Select
+                  name="category"
+                  label={t('form.category_label')}
+                  value={formData.category}
+                  onChange={handleChange}
+                  options={COMMODITY_CATEGORIES.map((c) => ({ value: c, label: getCategoryName(c) }))}
+                  helperText={t('form.category_helper')}
+                  tooltip={t('form.category_tooltip')}
+                />
+              )}
             </div>
-
-            {/* In Advanced Mode: Moisture, pH, Fat, Respiration */}
-            {isAdvancedMode && (
-              <div className="pt-4 border-t border-slate-800/80 space-y-5">
-                <div className="flex items-center gap-2">
-                  <Badge variant="teal" size="xs">{t('form.physicochemical_badge')}</Badge>
-                  <span className="text-xs text-slate-400">{t('form.physicochemical_desc')}</span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                  {/* Moisture Category */}
-                  <div>
-                    <Select
-                      name="moistureCategory"
-                      label={t('form.moisture_label')}
-                      value={formData.moistureCategory}
-                      onChange={handleChange}
-                      options={MOISTURE_CATEGORY_OPTIONS}
-                      helperText={t('form.moisture_helper')}
-                      tooltip={t('form.moisture_tooltip')}
-                    />
-                    {formData.moistureCategory === 'exact' && (
-                      <div className="mt-3">
-                        <Input
-                          name="moisture"
-                          type="number"
-                          step="0.1"
-                          min="0"
-                          max="100"
-                          label={t('form.exact_moisture_label')}
-                          value={formData.moisture}
-                          onChange={handleChange}
-                          suffix="%"
-                          error={errors.moisture}
-                          helperText={t('form.exact_moisture_helper')}
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* pH Category */}
-                  <div>
-                    <Select
-                      name="phCategory"
-                      label={t('form.ph_label')}
-                      value={formData.phCategory}
-                      onChange={handleChange}
-                      options={PH_CATEGORY_OPTIONS}
-                      helperText={t('form.ph_helper')}
-                      tooltip={t('form.ph_tooltip')}
-                    />
-                    {formData.phCategory === 'exact' && (
-                      <div className="mt-3">
-                        <Input
-                          name="pH"
-                          type="number"
-                          step="0.1"
-                          min="0"
-                          max="14"
-                          label={t('form.exact_ph_label')}
-                          value={formData.pH}
-                          onChange={handleChange}
-                          suffix="pH"
-                          error={errors.pH}
-                          helperText={t('form.exact_ph_helper')}
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Oil / Fat Category */}
-                  <div>
-                    <Select
-                      name="oilFatCategory"
-                      label={t('form.oil_fat_label')}
-                      value={formData.oilFatCategory}
-                      onChange={handleChange}
-                      options={OIL_FAT_CATEGORY_OPTIONS}
-                      helperText={t('form.oil_fat_helper')}
-                      tooltip={t('form.oil_fat_tooltip')}
-                    />
-                  </div>
-
-                  {/* Respiration Category */}
-                  <div>
-                    <Select
-                      name="respirationCategory"
-                      label={t('form.respiration_label')}
-                      value={formData.respirationCategory}
-                      onChange={handleChange}
-                      options={RESPIRATION_CATEGORY_OPTIONS}
-                      helperText={t('form.respiration_helper')}
-                      tooltip={t('form.respiration_tooltip')}
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
           </Card>
 
-          {/* 2. STORAGE & TRANSPORT CARD */}
+          {/* SECTION 2: STORAGE & TRANSPORT */}
           <Card className="p-6 sm:p-8 space-y-6">
             <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
-              <div className="w-9 h-9 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-400">
+              <div className="w-10 h-10 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-400">
                 <Thermometer className="w-5 h-5" />
               </div>
               <div>
@@ -564,7 +487,7 @@ export default function RecommendPage() {
               </div>
             </div>
 
-            {/* Storage Condition Selection Cards */}
+            {/* Storage Condition Selection Cards (Ambient / Chilled / Frozen) */}
             <div className="space-y-2">
               <label className="form-label">{t('form.storage_label')}</label>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -594,32 +517,43 @@ export default function RecommendPage() {
               </div>
             </div>
 
-            {/* Shelf-Life & Transport Options */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 pt-2">
-              {!isAdvancedMode ? (
-                <>
-                  <Select
-                    name="shelfLifeCategory"
-                    label={t('form.shelf_life_target_label')}
-                    value={formData.shelfLifeCategory}
-                    onChange={handleChange}
-                    options={SIMPLE_SHELF_LIFE_OPTIONS}
-                    helperText={t('form.shelf_life_target_helper')}
-                    tooltip={t('form.shelf_life_target_tooltip')}
-                  />
+            {/* In Simple Mode: Shelf-life tier, Transport tier, Sustainability preference */}
+            {!isAdvancedMode ? (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 pt-2">
+                <Select
+                  name="shelfLifeCategory"
+                  label={t('form.shelf_life_target_label')}
+                  value={formData.shelfLifeCategory}
+                  onChange={handleChange}
+                  options={simpleShelfLifeOptions}
+                  helperText={t('form.shelf_life_target_helper')}
+                  tooltip={t('form.shelf_life_target_tooltip')}
+                />
 
-                  <Select
-                    name="transportCategory"
-                    label={t('form.logistics_range_label')}
-                    value={formData.transportCategory}
-                    onChange={handleChange}
-                    options={SIMPLE_TRANSPORT_OPTIONS}
-                    helperText={t('form.logistics_range_helper')}
-                    tooltip={t('form.logistics_range_tooltip')}
-                  />
-                </>
-              ) : (
-                <>
+                <Select
+                  name="transportCategory"
+                  label={t('form.logistics_range_label')}
+                  value={formData.transportCategory}
+                  onChange={handleChange}
+                  options={simpleTransportOptions}
+                  helperText={t('form.logistics_range_helper')}
+                  tooltip={t('form.logistics_range_tooltip')}
+                />
+
+                <Select
+                  name="sustainabilityPreference"
+                  label={t('form.sustainability_label')}
+                  value={formData.sustainabilityPreference}
+                  onChange={handleChange}
+                  options={simpleSustainabilityOptions}
+                  helperText={t('form.sustainability_helper')}
+                  tooltip={t('form.sustainability_tooltip')}
+                />
+              </div>
+            ) : (
+              /* In Advanced Mode: Numeric shelf life days, transport condition, storage temp, RH, transit days, format, sustainability */
+              <div className="space-y-5 pt-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <Input
                     name="shelfLifeDays"
                     type="number"
@@ -641,87 +575,175 @@ export default function RecommendPage() {
                     options={TRANSPORTATION_CONDITIONS.map((tCond) => ({ value: tCond, label: tCond }))}
                     helperText={t('form.transport_condition_helper')}
                   />
-                </>
-              )}
-            </div>
+                </div>
 
-            {/* Advanced exact storage temps & RH */}
-            {isAdvancedMode && (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 pt-4 border-t border-slate-800/80">
-                <Input
-                  name="storageTemp"
-                  type="number"
-                  step="0.5"
-                  label={t('form.storage_temp_label')}
-                  value={formData.storageTemp}
-                  onChange={handleChange}
-                  suffix="°C"
-                  helperText={t('form.storage_temp_helper')}
-                />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 pt-4 border-t border-slate-800/80">
+                  <Input
+                    name="storageTemp"
+                    type="number"
+                    step="0.5"
+                    label={t('form.storage_temp_label')}
+                    value={formData.storageTemp}
+                    onChange={handleChange}
+                    suffix="°C"
+                    error={errors.storageTemp}
+                    helperText={t('form.storage_temp_helper')}
+                  />
 
-                <Input
-                  name="relativeHumidity"
-                  type="number"
-                  min="10"
-                  max="100"
-                  label={t('form.relative_humidity_label')}
-                  value={formData.relativeHumidity}
-                  onChange={handleChange}
-                  suffix="% RH"
-                  helperText={t('form.relative_humidity_helper')}
-                />
+                  <Input
+                    name="relativeHumidity"
+                    type="number"
+                    min="10"
+                    max="100"
+                    label={t('form.relative_humidity_label')}
+                    value={formData.relativeHumidity}
+                    onChange={handleChange}
+                    suffix="% RH"
+                    error={errors.relativeHumidity}
+                    helperText={t('form.relative_humidity_helper')}
+                  />
 
-                <Input
-                  name="transportDays"
-                  type="number"
-                  min="1"
-                  max="60"
-                  label={t('form.transit_days_label')}
-                  value={formData.transportDays}
-                  onChange={handleChange}
-                  suffix={t('common.days')}
-                  helperText={t('form.transit_days_helper')}
-                />
+                  <Input
+                    name="transportDays"
+                    type="number"
+                    min="1"
+                    max="60"
+                    label={t('form.transit_days_label')}
+                    value={formData.transportDays}
+                    onChange={handleChange}
+                    suffix={t('common.days')}
+                    error={errors.transportDays}
+                    helperText={t('form.transit_days_helper')}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 pt-4 border-t border-slate-800/80">
+                  <Select
+                    name="packagingFormat"
+                    label={t('form.format_label')}
+                    value={formData.packagingFormat}
+                    onChange={handleChange}
+                    options={PACKAGING_FORMATS.map((f) => ({ value: f, label: f }))}
+                    helperText={t('form.format_helper')}
+                    tooltip={t('form.format_tooltip')}
+                  />
+
+                  <Select
+                    name="sustainabilityPreference"
+                    label={t('form.sustainability_label')}
+                    value={formData.sustainabilityPreference}
+                    onChange={handleChange}
+                    options={SUSTAINABILITY_PREFERENCES.map((s) => ({ value: s.id, label: s.label }))}
+                    helperText={t('form.sustainability_helper')}
+                    tooltip={t('form.sustainability_tooltip')}
+                  />
+                </div>
               </div>
             )}
           </Card>
 
-          {/* 3. PACKAGING FORMAT & SUSTAINABILITY CARD */}
-          <Card className="p-6 sm:p-8 space-y-6">
-            <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
-              <div className="w-9 h-9 rounded-xl bg-teal-500/15 border border-teal-500/30 flex items-center justify-center text-teal-400">
-                <Leaf className="w-5 h-5" />
+          {/* SECTION 3: ADVANCED OPTIONS (ONLY IF YOU HAVE DATA) - ONLY VISIBLE IN ADVANCED MODE */}
+          {isAdvancedMode && (
+            <Card className="p-6 sm:p-8 space-y-6 border-indigo-900/40 bg-slate-900/80">
+              <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+                  <FlaskConical className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-white">{t('form.sec_3_title')}</h2>
+                  <p className="text-xs text-slate-400">{t('form.sec_3_desc')}</p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-lg font-bold text-white">{t('form.sec_3_title')}</h2>
-                <p className="text-xs text-slate-400">{t('form.sec_3_desc')}</p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                {/* 1. Moisture */}
+                <div className="space-y-3">
+                  <Select
+                    name="moistureCategory"
+                    label={t('form.moisture_label')}
+                    value={formData.moistureCategory}
+                    onChange={handleChange}
+                    options={moistureOptions}
+                    helperText={t('form.moisture_helper')}
+                    tooltip={t('form.moisture_tooltip')}
+                  />
+                  {formData.moistureCategory === 'exact' && (
+                    <div className="pt-2 pl-2 border-l-2 border-indigo-500/40">
+                      <Input
+                        name="moisture"
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        label={t('form.exact_moisture_label')}
+                        value={formData.moisture}
+                        onChange={handleChange}
+                        suffix="%"
+                        error={errors.moisture}
+                        helperText={t('form.exact_moisture_helper')}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. pH */}
+                <div className="space-y-3">
+                  <Select
+                    name="phCategory"
+                    label={t('form.ph_label')}
+                    value={formData.phCategory}
+                    onChange={handleChange}
+                    options={phOptions}
+                    helperText={t('form.ph_helper')}
+                    tooltip={t('form.ph_tooltip')}
+                  />
+                  {formData.phCategory === 'exact' && (
+                    <div className="pt-2 pl-2 border-l-2 border-indigo-500/40">
+                      <Input
+                        name="pH"
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="14"
+                        label={t('form.exact_ph_label')}
+                        value={formData.pH}
+                        onChange={handleChange}
+                        suffix="pH"
+                        error={errors.pH}
+                        helperText={t('form.exact_ph_helper')}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* 3. Oil / Fat */}
+                <div className="space-y-3">
+                  <Select
+                    name="oilFatCategory"
+                    label={t('form.oil_fat_label')}
+                    value={formData.oilFatCategory}
+                    onChange={handleChange}
+                    options={oilFatOptions}
+                    helperText={t('form.oil_fat_helper')}
+                    tooltip={t('form.oil_fat_tooltip')}
+                  />
+                </div>
+
+                {/* 4. Respiration Rate */}
+                <div className="space-y-3">
+                  <Select
+                    name="respirationCategory"
+                    label={t('form.respiration_label')}
+                    value={formData.respirationCategory}
+                    onChange={handleChange}
+                    options={respirationOptions}
+                    helperText={t('form.respiration_helper')}
+                    tooltip={t('form.respiration_tooltip')}
+                  />
+                </div>
               </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              {/* Packaging Format */}
-              <Select
-                name="packagingFormat"
-                label={t('form.format_label')}
-                value={formData.packagingFormat}
-                onChange={handleChange}
-                options={PACKAGING_FORMATS.map((f) => ({ value: f, label: f }))}
-                helperText={t('form.format_helper')}
-                tooltip={t('form.format_tooltip')}
-              />
-
-              {/* Sustainability Preference */}
-              <Select
-                name="sustainabilityPreference"
-                label={t('form.sustainability_label')}
-                value={formData.sustainabilityPreference}
-                onChange={handleChange}
-                options={SUSTAINABILITY_PREFERENCES.map((s) => ({ value: s.id, label: s.label }))}
-                helperText={t('form.sustainability_helper')}
-                tooltip={t('form.sustainability_tooltip')}
-              />
-            </div>
-          </Card>
+            </Card>
+          )}
 
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4">

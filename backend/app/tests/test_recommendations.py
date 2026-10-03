@@ -511,3 +511,74 @@ def test_phase6_numeric_takes_precedence_over_category(client):
     assert data["input_summary"]["respiration_rate"] == "high"
 
 
+def test_simple_mode_farmer_tomato_flow(client):
+    """Test farmer-friendly Simple Mode with minimal inputs for Tomato."""
+    payload = {
+        "commodity_name": "Tomato",
+        "storage_type": "ambient",
+        "shelf_life_category": "medium",
+        "transport_category": "local",
+        "sustainability_preference": "medium",
+        "simple_mode": True,
+        "use_defaults": True,
+    }
+    response = client.post("/api/recommendations", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+
+    # Verify commodity default enrichment
+    assert data["input_summary"]["commodity_name"] == "Tomato"
+    assert data["input_summary"]["moisture_percent"] == 94.0
+    assert data["input_summary"]["ph"] == 4.3
+    assert data["input_summary"]["desired_shelf_life_days"] == 21
+    assert data["requirements"]["breathable_film_needed"] is True
+    assert data["primary_recommendation"] is not None
+
+
+def test_simple_mode_farmer_potato_chips_flow(client):
+    """Test farmer-friendly Simple Mode with minimal inputs for Potato Chips."""
+    payload = {
+        "commodity_name": "Potato Chips",
+        "storage_type": "ambient",
+        "shelf_life_category": "long",
+        "transport_category": "local",
+        "sustainability_preference": "medium",
+        "simple_mode": True,
+        "use_defaults": True,
+    }
+    response = client.post("/api/recommendations", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+
+    assert data["input_summary"]["commodity_name"] == "Potato Chips"
+    assert data["input_summary"]["moisture_percent"] == 1.8
+    assert data["input_summary"]["oil_fat_level"] == "high"
+    assert data["requirements"]["required_wvtr_category"] in ("very_low", "low")
+    assert data["requirements"]["breathable_film_needed"] is False
+    assert data["primary_recommendation"] is not None
+
+
+def test_advanced_mode_dont_know_defaults(client):
+    """Test Advanced Mode when user selects 'I don’t know' for pH, moisture, lipid, and respiration."""
+    payload = {
+        "commodity_name": "Tomato",
+        "commodity_category": "Fresh Produce",
+        "storage_type": "ambient",
+        "desired_shelf_life_days": 18,
+        "simple_mode": False,
+        "use_defaults": True,
+        # Omit moisture_percent, ph, oil_fat_level, respiration_rate (representing "I don't know")
+    }
+    response = client.post("/api/recommendations", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+
+    # Backend should fallback to commodity defaults
+    assert data["input_summary"]["commodity_name"] == "Tomato"
+    assert data["input_summary"]["moisture_percent"] == 94.0
+    assert data["input_summary"]["ph"] == 4.3
+    assert data["input_summary"]["respiration_rate"] in ("moderate", "medium")
+    assert data["primary_recommendation"] is not None
+
+
+
