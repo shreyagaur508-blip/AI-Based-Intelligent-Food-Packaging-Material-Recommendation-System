@@ -24,11 +24,12 @@ import {
   ChevronDown,
   ChevronUp,
   Printer,
+  AlertTriangle,
+  Info,
 } from 'lucide-react';
 import Button from '../components/common/Button';
 import Card from '../components/common/Card';
 import Badge from '../components/common/Badge';
-import DisclaimerBanner from '../components/common/DisclaimerBanner';
 import { useTranslation } from '../i18n';
 
 /**
@@ -48,11 +49,15 @@ function getRiskBadge(riskLevel = '', t) {
 /**
  * Formats cost tier for visual badges with translations.
  */
-function getCostBadge(costClass = '', t) {
+function getCostBadgeInfo(costClass = '', t) {
   const cl = (costClass || '').toLowerCase();
-  if (cl === 'low' || cl === 'budget') return { variant: 'emerald', label: t('common.budget') };
-  if (cl === 'medium' || cl === 'moderate') return { variant: 'blue', label: t('common.moderate') };
-  return { variant: 'purple', label: t('common.premium') };
+  if (cl === 'low' || cl === 'budget') {
+    return { variant: 'emerald', label: t('results.cost_badge_low') || 'Cost: Low (₹)' };
+  }
+  if (cl === 'medium' || cl === 'moderate') {
+    return { variant: 'blue', label: t('results.cost_badge_medium') || 'Cost: Medium (₹₹)' };
+  }
+  return { variant: 'purple', label: t('results.cost_badge_high') || 'Cost: High (₹₹₹)' };
 }
 
 /**
@@ -69,7 +74,8 @@ export default function ResultsPage() {
 
   const [recommendation, setRecommendation] = useState(null);
   const [formData, setFormData] = useState(null);
-  const [showTechnicalDetails, setShowTechnicalDetails] = useState(true);
+  // Technical details collapsed by default as per requirement
+  const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
   const [showDisqualified, setShowDisqualified] = useState(true);
 
   useEffect(() => {
@@ -126,37 +132,87 @@ export default function ResultsPage() {
   const risks = recommendation.risk_profile || {};
   const inputSum = recommendation.commodity_summary || recommendation.input_summary || formData || {};
   const disqualified = recommendation.disqualified_materials || [];
-  const plainSummary = recommendation.plain_language_summary;
   const thickness = recommendation.suggested_thickness_range_microns;
 
-  // Extract plain-language bullets
+  // 1. Plain-Language Summary Bullets (Dynamic 3–5 bullets based on commodity risks & requirements)
   const plainBullets = [];
-  if (plainSummary?.must_do) {
-    plainBullets.push(plainSummary.must_do);
-  }
-  if (reqs.breathable_film_needed) {
-    plainBullets.push('Provide calibrated gas transmission (micro-perforations) to prevent produce suffocation and ethanol off-odors.');
-  } else if (reqs.required_otr_category === 'very_low' || reqs.required_otr_category === 'low') {
-    plainBullets.push('Block atmospheric oxygen penetration to stop rancidity, vitamin degradation, and oxidative discoloration.');
-  }
-  if (reqs.required_wvtr_category === 'very_low' || reqs.required_wvtr_category === 'low') {
-    plainBullets.push('Prevent moisture vapor ingress to preserve crispy crunchiness and stop dry powders from moisture caking.');
-  }
-  if (reqs.map_suitable) {
-    plainBullets.push('Maintain protective modified atmosphere (MAP / Nitrogen flush) to double product shelf-life without chemical preservatives.');
-  }
-  if (plainSummary?.storage_guidance) {
-    plainBullets.push(`Storage guidance: ${plainSummary.storage_guidance}`);
+
+  // Check Respiration / Breathability
+  if (
+    reqs.breathable_film_needed ||
+    risks.respiration_risk === 'high' ||
+    risks.respiration_risk === 'medium'
+  ) {
+    plainBullets.push(t('results.bullet_respiration'));
   }
 
-  if (plainBullets.length === 0) {
-    plainBullets.push('Maintain hermetic barrier integrity against ambient oxygen and water vapor pressure.');
-    plainBullets.push('Prevent physical mechanical puncture damage during distribution.');
-    plainBullets.push('Ensure 100% food-contact safety compliance according to global standards.');
+  // Check Oxygen / Oxidation
+  if (
+    risks.oxidation_risk === 'high' ||
+    risks.oxidation_risk === 'medium' ||
+    reqs.required_otr_category === 'low' ||
+    reqs.required_otr_category === 'very_low' ||
+    reqs.required_otr_category === 'ultra_high_barrier'
+  ) {
+    plainBullets.push(t('results.bullet_oxygen'));
+  }
+
+  // Check Moisture / Crispness
+  if (
+    risks.moisture_risk === 'high' ||
+    risks.moisture_risk === 'medium' ||
+    reqs.required_wvtr_category === 'low' ||
+    reqs.required_wvtr_category === 'very_low' ||
+    reqs.required_wvtr_category === 'ultra_high_barrier'
+  ) {
+    plainBullets.push(t('results.bullet_moisture'));
+  }
+
+  // Sealing & Transport
+  plainBullets.push(t('results.bullet_seals'));
+
+  // Temperature / Cold Chain guidance if refrigerated/frozen or if list is small
+  const storageVal = (inputSum.storage_type || inputSum.storageType || '').toLowerCase();
+  if (storageVal === 'chilled' || storageVal === 'frozen' || plainBullets.length < 3) {
+    plainBullets.push(t('results.bullet_temperature'));
+  }
+
+  // Food-grade safety guarantee
+  if (plainBullets.length < 5) {
+    plainBullets.push(t('results.bullet_food_grade'));
+  }
+
+  // Ensure between 3 and 5 unique bullets
+  const finalBullets = Array.from(new Set(plainBullets)).slice(0, 5);
+
+  // 2. Exactly 3 Key Reasons for Primary Recommendation
+  const primaryReasons = [];
+  if (primary.reasons && Array.isArray(primary.reasons)) {
+    for (const r of primary.reasons) {
+      if (r && typeof r === 'string' && r.trim()) {
+        primaryReasons.push(r.trim());
+      }
+      if (primaryReasons.length === 3) break;
+    }
+  }
+  // If fewer than 3 reasons, pad with derived bullet points
+  const candidateFallbacks = [
+    t('results.bullet_oxygen'),
+    t('results.bullet_moisture'),
+    t('results.bullet_seals'),
+    t('results.bullet_food_grade'),
+  ];
+  for (const fb of candidateFallbacks) {
+    if (primaryReasons.length >= 3) break;
+    if (!primaryReasons.includes(fb)) {
+      primaryReasons.push(fb);
+    }
   }
 
   const commodityName = inputSum.commodity_name || 'Food Product';
   const displayCommodityName = getCommodityName(commodityName);
+  const primaryCostBadge = getCostBadgeInfo(primary.cost_class || primary.cost_level || recommendation.cost_class, t);
+  const primarySustainabilityScore = Math.round(primary.sustainability_score ?? 88);
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-8">
@@ -174,15 +230,15 @@ export default function ResultsPage() {
             <span className="text-slate-600">•</span>
             <Badge variant="brand" size="xs">{t('results.badge')}</Badge>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight break-words">
             {t('results.title')}
           </h1>
-          <p className="text-sm text-slate-300">
+          <p className="text-sm text-slate-300 break-words">
             {t('results.subtitle')} <span className="font-semibold text-emerald-400">{displayCommodityName}</span>.
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 shrink-0">
           <Link to="/recommend">
             <Button size="sm" variant="secondary" icon={RotateCcw}>
               {t('common.new_evaluation')}
@@ -204,12 +260,12 @@ export default function ResultsPage() {
       <Card className="p-5 sm:p-6 bg-slate-900/90 border-slate-800">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800/80">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
               <Package className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-lg font-bold text-white">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-lg font-bold text-white break-words">
                   {displayCommodityName}
                 </h3>
                 <Badge variant="slate" size="xs">
@@ -279,100 +335,97 @@ export default function ResultsPage() {
         </div>
       </Card>
 
-      {/* 2. PLAIN-LANGUAGE SUMMARY SECTION */}
-      <Card className="p-6 sm:p-7 bg-gradient-to-br from-emerald-950/30 via-slate-900 to-slate-900 border-emerald-500/30 space-y-4">
-        <div className="flex items-center gap-2.5">
-          <div className="p-2 rounded-lg bg-emerald-500/20 text-emerald-300">
+      {/* 2. PLAIN-LANGUAGE SUMMARY SECTION: "What this packaging must do" */}
+      <Card className="p-6 sm:p-7 bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-900 border-emerald-500/40 shadow-lg space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
             <Zap className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-base sm:text-lg font-bold text-white">
-              {t('results.plain_summary_title')}
+            <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">
+              {t('results.what_must_do_title')}
             </h3>
-            <p className="text-xs text-emerald-300/80">
-              {t('results.plain_summary_sub')}
+            <p className="text-xs text-emerald-300/85">
+              {t('results.what_must_do_sub')}
             </p>
           </div>
         </div>
 
-        <ul className="space-y-2.5 text-xs sm:text-sm text-slate-200">
-          {plainBullets.map((bullet, idx) => (
-            <li key={idx} className="flex items-start gap-2.5 leading-relaxed">
+        <div className="grid grid-cols-1 gap-2.5 pt-1">
+          {finalBullets.map((bullet, idx) => (
+            <div
+              key={idx}
+              className="flex items-start gap-3 p-3 rounded-xl bg-slate-950/60 border border-emerald-500/20 text-xs sm:text-sm text-slate-200 leading-relaxed"
+            >
               <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-              <span>{bullet}</span>
-            </li>
+              <span className="font-medium">{bullet}</span>
+            </div>
           ))}
-        </ul>
+        </div>
       </Card>
 
       {/* 3. PRIMARY RECOMMENDATION CARD */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Award className="w-5 h-5 text-emerald-400" />
-            <h2 className="text-xl font-bold text-white">{t('results.primary_title')}</h2>
+            <Award className="w-6 h-6 text-emerald-400" />
+            <h2 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
+              {t('results.primary_title')}
+            </h2>
           </div>
           <Badge variant="brand" size="sm">{t('results.top_ranked')}</Badge>
         </div>
 
-        <Card accent className="p-6 sm:p-8 space-y-6 border-emerald-500/40">
-          <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 pb-6 border-b border-slate-800">
-            <div className="space-y-2">
+        <Card accent className="p-6 sm:p-8 space-y-6 border-emerald-500/50 bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/20 shadow-2xl">
+          {/* Header row: Material name, structure, and prominent badges */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 pb-6 border-b border-slate-800">
+            <div className="space-y-2 flex-1">
               <div className="flex items-center gap-2.5 flex-wrap">
-                <h3 className="text-xl sm:text-2xl font-extrabold text-white">
+                <h3 className="text-xl sm:text-2xl lg:text-3xl font-black text-white tracking-tight break-words">
                   {primary.name || primary.material_name || 'Optimal Packaging Material'}
                 </h3>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shrink-0">
                   {t('results.optimal_match')}
                 </span>
               </div>
-              <div className="text-sm font-mono text-emerald-300/90 flex items-center gap-2">
+              <div className="text-xs sm:text-sm font-mono text-emerald-300/90 flex items-center gap-2 break-words">
                 <Layers className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>{t('results.structure')} {primary.structure || 'Engineered Multilayer Web'}</span>
+                <span>{t('results.structure')} <strong className="text-white">{primary.structure || 'Engineered Multilayer Film'}</strong></span>
               </div>
             </div>
 
-            {/* Badges: Sustainability & Cost */}
-            <div className="flex flex-wrap items-center gap-2.5">
-              <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-center min-w-[110px]">
-                <div className="text-[10px] text-slate-400 uppercase font-bold mb-1 flex items-center justify-center gap-1">
-                  <Leaf className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>{t('results.eco_score')}</span>
-                </div>
-                <div className="text-lg font-bold text-emerald-400 font-display">
-                  {Math.round(primary.sustainability_score ?? 80)}/100
-                </div>
+            {/* Badges: Sustainability & Cost (Prominent display) */}
+            <div className="flex flex-wrap items-center gap-3 shrink-0">
+              <div className="px-4 py-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 flex items-center gap-2.5">
+                <Leaf className="w-4 h-4 text-emerald-400" />
+                <span className="text-xs sm:text-sm font-bold text-emerald-300">
+                  {t('results.sustainability_badge', { score: primarySustainabilityScore })}
+                </span>
               </div>
 
-              <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-center min-w-[110px]">
-                <div className="text-[10px] text-slate-400 uppercase font-bold mb-1 flex items-center justify-center gap-1">
-                  <DollarSign className="w-3.5 h-3.5 text-blue-400" />
-                  <span>{t('results.cost_tier')}</span>
-                </div>
-                {(() => {
-                  const c = getCostBadge(primary.cost_class || primary.cost_level || recommendation.cost_class, t);
-                  return <Badge variant={c.variant} size="sm">{c.label}</Badge>;
-                })()}
+              <div className="px-4 py-2.5 rounded-xl bg-blue-950/40 border border-blue-500/30 flex items-center gap-2.5">
+                <DollarSign className="w-4 h-4 text-blue-400" />
+                <span className="text-xs sm:text-sm font-bold text-blue-300">
+                  {primaryCostBadge.label}
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Key Reasons Bullets */}
+          {/* Exactly 3 Key Reasons Bullets */}
           <div className="space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              <span>{t('results.justification_title')}</span>
+              <span>{t('results.key_reasons_title')}</span>
             </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {(primary.reasons && primary.reasons.length > 0 ? primary.reasons : [
-                'Provides calibrated oxygen and water vapor resistance matched to commodity degradation kinetics.',
-                'Certified food-grade contact compliant with FDA 21 CFR 177 and EU 10/2011 standards.',
-                'High seal integrity and flex-crack resistance across supply chain temperatures.',
-                'Optimized gauge thickness reduces material mass while maintaining barrier hermeticity.'
-              ]).map((reason, idx) => (
-                <div key={idx} className="p-3 rounded-xl bg-slate-950/50 border border-slate-800/80 text-xs text-slate-300 leading-relaxed flex items-start gap-2.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 mt-1.5"></span>
-                  <span>{reason}</span>
+            <div className="grid grid-cols-1 gap-2.5">
+              {primaryReasons.map((reason, idx) => (
+                <div
+                  key={idx}
+                  className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 text-xs sm:text-sm text-slate-200 leading-relaxed flex items-start gap-3"
+                >
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0 mt-1.5 shadow-[0_0_8px_rgba(52,211,153,0.6)]"></span>
+                  <span className="break-words">{reason}</span>
                 </div>
               ))}
             </div>
@@ -396,49 +449,79 @@ export default function ResultsPage() {
         </Card>
       </div>
 
-      {/* 4. ALTERNATIVE RECOMMENDATIONS CARDS */}
+      {/* 4. ALTERNATIVE RECOMMENDATIONS (1–2 CARDS) */}
       {alternatives.length > 0 && (
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <Layers className="w-5 h-5 text-blue-400" />
-            <h2 className="text-xl font-bold text-white">{t('results.alternatives_title')}</h2>
+            <h2 className="text-xl font-bold text-white tracking-tight">{t('results.alternatives_title')}</h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {alternatives.map((alt, idx) => {
-              const c = getCostBadge(alt.cost_class || alt.cost_level, t);
+            {alternatives.slice(0, 2).map((alt, idx) => {
+              const altCostBadge = getCostBadgeInfo(alt.cost_class || alt.cost_level, t);
+              const altSustainability = Math.round(alt.sustainability_score ?? 75);
+              const altHighlight = alt.highlight || (idx === 0 ? t('results.eco_alt_label') : t('results.barrier_alt_label'));
+
+              // 1–2 key reasons for alternative
+              const altReasons = [];
+              if (alt.reasons && Array.isArray(alt.reasons) && alt.reasons.length > 0) {
+                altReasons.push(...alt.reasons.slice(0, 2));
+              } else if (alt.explanation) {
+                altReasons.push(alt.explanation);
+              } else {
+                altReasons.push(t('results.bullet_seals'));
+                altReasons.push(t('results.bullet_food_grade'));
+              }
+
               return (
-                <Card key={idx} hover className="p-6 space-y-4 border-slate-800 flex flex-col justify-between">
+                <Card key={idx} hover className="p-6 space-y-4 border-slate-800 flex flex-col justify-between bg-slate-900/80">
                   <div className="space-y-3">
-                    <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start justify-between gap-3 flex-wrap">
                       <div>
-                        <Badge variant="blue" size="xs" className="mb-1.5">
-                          {alt.highlight || `${t('results.alternative')} ${idx + 1}`}
-                        </Badge>
-                        <h3 className="text-base sm:text-lg font-bold text-white">
+                        <span className="inline-block px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-blue-500/15 text-blue-300 border border-blue-500/30 mb-1.5">
+                          {altHighlight}
+                        </span>
+                        <h3 className="text-base sm:text-lg font-bold text-white break-words">
                           {alt.name || alt.material_name}
                         </h3>
                       </div>
-                      <Badge variant={c.variant} size="xs">
-                        {c.label}
-                      </Badge>
                     </div>
 
-                    <div className="text-xs font-mono text-slate-300">
-                      {t('results.structure')} {alt.structure || 'Multilayer Matrix'}
+                    <div className="text-xs font-mono text-slate-300 flex items-center gap-1.5 break-words">
+                      <Layers className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span>{t('results.structure')} <strong className="text-slate-200">{alt.structure || 'Multilayer Film'}</strong></span>
                     </div>
 
-                    <p className="text-xs text-slate-400 leading-relaxed">
-                      {alt.explanation || (alt.reasons && alt.reasons[0]) || 'Viable alternative providing adequate barrier protection with differentiated cost or recyclability.'}
-                    </p>
+                    {/* Badges: Sustainability + Cost */}
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-950/40 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                        <Leaf className="w-3.5 h-3.5" />
+                        {t('results.sustainability_badge', { score: altSustainability })}
+                      </span>
+                      <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-950/40 text-blue-300 border border-blue-500/30 flex items-center gap-1">
+                        <DollarSign className="w-3.5 h-3.5" />
+                        {altCostBadge.label}
+                      </span>
+                    </div>
+
+                    {/* 1–2 Reasons */}
+                    <div className="space-y-1.5 pt-2 border-t border-slate-800/80">
+                      {altReasons.slice(0, 2).map((reason, rIdx) => (
+                        <div key={rIdx} className="text-xs text-slate-300 leading-relaxed flex items-start gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0 mt-1.5"></span>
+                          <span className="break-words">{reason}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
                   <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
                     <span className="flex items-center gap-1 text-emerald-400 font-medium">
-                      <Leaf className="w-3.5 h-3.5" />
-                      {t('results.eco_score')}: {Math.round(alt.sustainability_score ?? 75)}/100
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      100% Food-Grade Certified
                     </span>
-                    <span className="text-slate-500">Food-Grade Certified</span>
+                    <span className="text-slate-500">ASTM Compliant</span>
                   </div>
                 </Card>
               );
@@ -447,116 +530,116 @@ export default function ResultsPage() {
         </div>
       )}
 
-      {/* 5. TECHNICAL SPECIFICATION GRID */}
+      {/* 5. TECHNICAL DETAILS SECTION (FOR EXPERTS) - COLLAPSIBLE, DEFAULT COLLAPSED */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Activity className="w-5 h-5 text-teal-400" />
-            <h2 className="text-xl font-bold text-white">{t('results.technical_details_title')}</h2>
+            <h2 className="text-xl font-bold text-white tracking-tight">{t('results.technical_details_title')}</h2>
           </div>
           <button
             type="button"
             onClick={() => setShowTechnicalDetails(!showTechnicalDetails)}
-            className="text-xs text-slate-400 hover:text-white flex items-center gap-1 focus:outline-none"
+            className="text-xs font-semibold text-slate-400 hover:text-white flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-850 hover:bg-slate-800 transition-colors focus:outline-none"
           >
             <span>{showTechnicalDetails ? t('results.collapse') : t('results.expand')}</span>
-            {showTechnicalDetails ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            {showTechnicalDetails ? <ChevronUp className="w-4 h-4 text-emerald-400" /> : <ChevronDown className="w-4 h-4 text-emerald-400" />}
           </button>
         </div>
 
         {showTechnicalDetails && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-in fade-in duration-200">
             {/* OTR */}
-            <Card className="p-4 space-y-1.5 border-slate-800/90">
+            <Card className="p-4 space-y-1.5 border-slate-800/90 bg-slate-900/90">
               <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                 <Wind className="w-3.5 h-3.5 text-blue-400" />
                 <span>{t('results.otr_requirement')}</span>
               </div>
-              <div className="text-base font-bold text-white">
+              <div className="text-base font-bold text-white break-words">
                 {formatCategoryLabel(reqs.required_otr_category || recommendation.otr_requirement_category || 'Low OTR')}
               </div>
               <div className="text-[11px] text-slate-400">ASTM D3985 standard</div>
             </Card>
 
             {/* WVTR */}
-            <Card className="p-4 space-y-1.5 border-slate-800/90">
+            <Card className="p-4 space-y-1.5 border-slate-800/90 bg-slate-900/90">
               <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                 <Droplets className="w-3.5 h-3.5 text-teal-400" />
                 <span>{t('results.wvtr_requirement')}</span>
               </div>
-              <div className="text-base font-bold text-white">
+              <div className="text-base font-bold text-white break-words">
                 {formatCategoryLabel(reqs.required_wvtr_category || recommendation.wvtr_requirement_category || 'Low WVTR')}
               </div>
               <div className="text-[11px] text-slate-400">ASTM F1249 standard</div>
             </Card>
 
             {/* MAP Suitability */}
-            <Card className="p-4 space-y-1.5 border-slate-800/90">
+            <Card className="p-4 space-y-1.5 border-slate-800/90 bg-slate-900/90">
               <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                 <Zap className="w-3.5 h-3.5 text-amber-400" />
                 <span>{t('results.map_suitability')}</span>
               </div>
-              <div className="text-base font-bold text-white">
+              <div className="text-base font-bold text-white break-words">
                 {reqs.map_suitable || recommendation.map_suitability === 'Recommended' ? t('common.suitable') : t('common.not_required')}
               </div>
               <div className="text-[11px] text-slate-400">Gas flush compatibility</div>
             </Card>
 
             {/* Breathable / Micro-Perforated */}
-            <Card className="p-4 space-y-1.5 border-slate-800/90">
+            <Card className="p-4 space-y-1.5 border-slate-800/90 bg-slate-900/90">
               <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                 <Activity className="w-3.5 h-3.5 text-emerald-400" />
                 <span>{t('results.emap_breathability')}</span>
               </div>
-              <div className="text-base font-bold text-white">
+              <div className="text-base font-bold text-white break-words">
                 {reqs.breathable_film_needed ? 'Micro-Perforated Required' : 'Continuous Barrier Film'}
               </div>
               <div className="text-[11px] text-slate-400">Respiratory equilibrium</div>
             </Card>
 
             {/* Thickness */}
-            <Card className="p-4 space-y-1.5 border-slate-800/90">
+            <Card className="p-4 space-y-1.5 border-slate-800/90 bg-slate-900/90">
               <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                 <Layers className="w-3.5 h-3.5 text-indigo-400" />
                 <span>{t('results.suggested_thickness')}</span>
               </div>
-              <div className="text-base font-bold text-white">
+              <div className="text-base font-bold text-white break-words">
                 {thickness?.recommended_microns || 45} µm ({thickness?.min_microns || 30}–{thickness?.max_microns || 60} µm)
               </div>
               <div className="text-[11px] text-slate-400">Gauge specification</div>
             </Card>
 
             {/* Mechanical Strength */}
-            <Card className="p-4 space-y-1.5 border-slate-800/90">
+            <Card className="p-4 space-y-1.5 border-slate-800/90 bg-slate-900/90">
               <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                 <ShieldCheck className="w-3.5 h-3.5 text-rose-400" />
                 <span>{t('results.mechanical_strength')}</span>
               </div>
-              <div className="text-base font-bold text-white">
+              <div className="text-base font-bold text-white break-words">
                 {formatCategoryLabel(reqs.mechanical_strength_requirement || recommendation.mechanical_strength_requirement || 'Medium')}
               </div>
               <div className="text-[11px] text-slate-400">Puncture & flex defense</div>
             </Card>
 
             {/* Sealability */}
-            <Card className="p-4 space-y-1.5 border-slate-800/90">
+            <Card className="p-4 space-y-1.5 border-slate-800/90 bg-slate-900/90">
               <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                 <span>{t('results.seal_integrity')}</span>
               </div>
-              <div className="text-base font-bold text-white">
+              <div className="text-base font-bold text-white break-words">
                 {formatCategoryLabel(reqs.sealability_requirement || recommendation.sealability_requirement || 'Hermetic Seal')}
               </div>
               <div className="text-[11px] text-slate-400">Thermal bonding strength</div>
             </Card>
 
             {/* Storage Recommendation */}
-            <Card className="p-4 space-y-1.5 border-slate-800/90">
+            <Card className="p-4 space-y-1.5 border-slate-800/90 bg-slate-900/90">
               <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                 <Thermometer className="w-3.5 h-3.5 text-blue-400" />
                 <span>{t('results.storage_handling')}</span>
               </div>
-              <div className="text-base font-bold text-white">
+              <div className="text-base font-bold text-white break-words">
                 {recommendation.storage_recommendation || 'Maintain target cold chain setpoint'}
               </div>
               <div className="text-[11px] text-slate-400">Environmental guideline</div>
@@ -565,11 +648,11 @@ export default function ResultsPage() {
         )}
       </div>
 
-      {/* 6. COMPARISON TABLE */}
+      {/* 6. COMPARISON MATRIX TABLE */}
       <div className="space-y-4">
         <div className="flex items-center gap-2">
           <Scale className="w-5 h-5 text-indigo-400" />
-          <h2 className="text-xl font-bold text-white">{t('results.matrix_title')}</h2>
+          <h2 className="text-xl font-bold text-white tracking-tight">{t('results.matrix_title')}</h2>
         </div>
 
         <Card className="p-0 overflow-hidden border-slate-800">
@@ -591,47 +674,44 @@ export default function ResultsPage() {
                   <td className="px-5 py-4 font-bold text-emerald-400">
                     <Badge variant="brand" size="xs">{t('results.primary')}</Badge>
                   </td>
-                  <td className="px-5 py-4 font-semibold text-white">
+                  <td className="px-5 py-4 font-semibold text-white break-words">
                     {primary.name || primary.material_name}
                   </td>
-                  <td className="px-5 py-4 font-mono text-slate-300">
+                  <td className="px-5 py-4 font-mono text-slate-300 break-words">
                     {primary.structure}
                   </td>
                   <td className="px-5 py-4 text-center font-bold text-emerald-400">
-                    {Math.round(primary.sustainability_score ?? 80)}
+                    {primarySustainabilityScore}
                   </td>
                   <td className="px-5 py-4 text-center">
-                    {(() => {
-                      const c = getCostBadge(primary.cost_class || primary.cost_level, t);
-                      return <Badge variant={c.variant} size="xs">{c.label}</Badge>;
-                    })()}
+                    <Badge variant={primaryCostBadge.variant} size="xs">{primaryCostBadge.label}</Badge>
                   </td>
-                  <td className="px-5 py-4 text-slate-300">
+                  <td className="px-5 py-4 text-slate-300 break-words">
                     {primary.highlight || 'Optimal multi-criteria barrier score'}
                   </td>
                 </tr>
 
                 {/* Alternative Rows */}
                 {alternatives.map((alt, idx) => {
-                  const c = getCostBadge(alt.cost_class || alt.cost_level, t);
+                  const altCost = getCostBadgeInfo(alt.cost_class || alt.cost_level, t);
                   return (
                     <tr key={idx} className="hover:bg-slate-850/40 transition-colors">
                       <td className="px-5 py-4 text-slate-400 font-medium">
                         {t('results.alternative')} {idx + 1}
                       </td>
-                      <td className="px-5 py-4 font-semibold text-slate-200">
+                      <td className="px-5 py-4 font-semibold text-slate-200 break-words">
                         {alt.name || alt.material_name}
                       </td>
-                      <td className="px-5 py-4 font-mono text-slate-400">
+                      <td className="px-5 py-4 font-mono text-slate-400 break-words">
                         {alt.structure}
                       </td>
                       <td className="px-5 py-4 text-center font-bold text-slate-300">
                         {Math.round(alt.sustainability_score ?? 70)}
                       </td>
                       <td className="px-5 py-4 text-center">
-                        <Badge variant={c.variant} size="xs">{c.label}</Badge>
+                        <Badge variant={altCost.variant} size="xs">{altCost.label}</Badge>
                       </td>
-                      <td className="px-5 py-4 text-slate-400">
+                      <td className="px-5 py-4 text-slate-400 break-words">
                         {alt.highlight || 'Viable alternative'}
                       </td>
                     </tr>
@@ -643,21 +723,21 @@ export default function ResultsPage() {
         </Card>
       </div>
 
-      {/* 7. DISQUALIFIED MATERIALS SECTION (IF ANY) */}
+      {/* 7. DISQUALIFIED MATERIALS (SAFETY GATE) */}
       {disqualified.length > 0 && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-rose-400">
               <Ban className="w-5 h-5" />
-              <h2 className="text-xl font-bold text-white">{t('results.disqualified_title')}</h2>
+              <h2 className="text-xl font-bold text-white tracking-tight">{t('results.disqualified_title')}</h2>
             </div>
             <button
               type="button"
               onClick={() => setShowDisqualified(!showDisqualified)}
-              className="text-xs text-slate-400 hover:text-white flex items-center gap-1 focus:outline-none"
+              className="text-xs font-semibold text-slate-400 hover:text-white flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-850 hover:bg-slate-800 transition-colors focus:outline-none"
             >
               <span>{showDisqualified ? t('results.hide') : t('results.show')}</span>
-              {showDisqualified ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              {showDisqualified ? <ChevronUp className="w-4 h-4 text-rose-400" /> : <ChevronDown className="w-4 h-4 text-rose-400" />}
             </button>
           </div>
 
@@ -673,10 +753,10 @@ export default function ResultsPage() {
                       <Ban className="w-3.5 h-3.5" />
                     </div>
                     <div>
-                      <div className="text-xs font-bold text-rose-300 mb-0.5">
+                      <div className="text-xs font-bold text-rose-300 mb-0.5 break-words">
                         {item.material_name || `Disqualified Material #${item.material_id}`}
                       </div>
-                      <div className="text-xs text-slate-400 leading-relaxed">
+                      <div className="text-xs text-slate-400 leading-relaxed break-words">
                         {item.reason}
                       </div>
                     </div>
@@ -688,8 +768,27 @@ export default function ResultsPage() {
         </div>
       )}
 
-      {/* 8. DISCLAIMER BANNER */}
-      <DisclaimerBanner text={recommendation.disclaimer} />
+      {/* 8. COLORED ALERT BOX DISCLAIMER */}
+      <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-r from-amber-950/30 via-slate-900 to-amber-950/20 border border-amber-500/40 shadow-xl space-y-2">
+        <div className="flex items-start gap-3.5">
+          <div className="p-2.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 shrink-0">
+            <AlertTriangle className="w-5 h-5" />
+          </div>
+          <div className="space-y-1.5 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h4 className="text-sm font-bold text-amber-300 tracking-wide">
+                {t('results.disclaimer_title')}
+              </h4>
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                Notice
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-200 leading-relaxed break-words">
+              {t('results.disclaimer_text')}
+            </p>
+          </div>
+        </div>
+      </div>
 
       {/* Bottom Actions */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
@@ -707,3 +806,4 @@ export default function ResultsPage() {
     </div>
   );
 }
+
