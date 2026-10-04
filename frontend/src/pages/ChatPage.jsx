@@ -35,7 +35,7 @@ import {
 
 export default function ChatPage() {
   const navigate = useNavigate();
-  const { t, language, currentLanguageInfo } = useTranslation();
+  const { t, language, currentLanguageInfo, getCommodityName, getStorageTypeName } = useTranslation();
 
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
@@ -164,10 +164,7 @@ export default function ChatPage() {
       const errorMsg = {
         id: `err-${Date.now()}`,
         role: 'assistant',
-        content:
-          language === 'hi'
-            ? 'क्षमा करें, संदेश भेजने में कोई समस्या हुई। कृपया पुनः प्रयास करें या सीधे फ़ॉर्म का उपयोग करें।'
-            : 'Sorry, I encountered an issue while connecting. Please try again or use the recommendation form.',
+        content: t('chat.error_message'),
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       setMessages((prev) => [...prev, errorMsg]);
@@ -493,22 +490,22 @@ export default function ChatPage() {
 
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs text-slate-300 mb-3 bg-slate-900/60 p-2 rounded-lg">
                         <div>
-                          <span className="text-[10px] text-slate-500 block">Commodity</span>
-                          <span className="font-medium text-white">
-                            {msg.suggestedFormValues.commodity_name}
+                          <span className="text-[10px] text-slate-500 block">{t('chat.label_commodity')}</span>
+                          <span className="font-medium text-white break-words">
+                            {getCommodityName(msg.suggestedFormValues.commodity_name)}
                           </span>
                         </div>
                         {msg.suggestedFormValues.storage_type && (
                           <div>
-                            <span className="text-[10px] text-slate-500 block">Storage</span>
-                            <span className="font-medium capitalize text-emerald-300">
-                              {msg.suggestedFormValues.storage_type}
+                            <span className="text-[10px] text-slate-500 block">{t('chat.label_storage')}</span>
+                            <span className="font-medium capitalize text-emerald-300 break-words">
+                              {getStorageTypeName(msg.suggestedFormValues.storage_type)}
                             </span>
                           </div>
                         )}
                         {msg.suggestedFormValues.desired_shelf_life_days && (
                           <div>
-                            <span className="text-[10px] text-slate-500 block">Shelf Life</span>
+                            <span className="text-[10px] text-slate-500 block">{t('chat.label_shelf_life')}</span>
                             <span className="font-medium text-amber-300">
                               {msg.suggestedFormValues.desired_shelf_life_days} {t('common.days')}
                             </span>

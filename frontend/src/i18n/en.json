@@ -46,7 +46,8 @@
     "high_risk": "High Risk",
     "budget": "Budget-Friendly",
     "moderate": "Moderate Cost",
-    "premium": "Premium Tier"
+    "premium": "Premium Tier",
+    "select_option": "Select an option..."
   },
   "landing": {
     "badge": "AI & Physics-Based Food Packaging Intelligence",
@@ -58,6 +59,7 @@
     "metric_astm": "OTR & WVTR Standardized",
     "metric_compliance": "Food-Grade Certified",
     "metric_explainable": "Rule-Based Reasoning",
+    "metric_mcda_sub": "Rule Engine MCDA",
     "challenge_badge": "The Packaging Challenge",
     "challenge_title": "Why Food Packaging Fails",
     "challenge_subtitle": "Selecting packaging without scientific barrier analysis leads to spoilage, regulatory failure, and unnecessary plastic waste.",
@@ -116,6 +118,7 @@
     "advanced_mode": "I have lab/test data",
     "quick_presets": "Quick Commodity Presets",
     "loaded_preset": "Loaded preset: {{name}}",
+    "prefilled_notice": "✨ Pre-filled parameters from PackWise AI Assistant for {{name}}",
     "form_reset_notice": "Form reset to default.",
     "sec_1_title": "Product details",
     "sec_1_desc": "Basic food commodity identification and chemical characteristics.",
@@ -188,7 +191,8 @@
     "btn_submit": "Get Recommendation",
     "btn_reset": "Reset Form",
     "btn_retry": "Retry Recommendation",
-    "backend_error_title": "Backend Connection Error"
+    "backend_error_title": "Backend Connection Error",
+    "default_conditions": "Default: {{temp}}°C • {{rh}}% RH"
   },
   "validation": {
     "commodity_required": "Please enter a commodity name.",
@@ -218,8 +222,6 @@
     "freezer_burn_risk": "Freezer Burn",
     "what_must_do_title": "What this packaging must do",
     "what_must_do_sub": "Key protection requirements in simple language for farmers and processors.",
-    "plain_summary_title": "What this packaging must do",
-    "plain_summary_sub": "Key protection requirements in simple language for farmers and processors.",
     "bullet_oxygen": "Protect against oxygen to prevent rancidity and staleness.",
     "bullet_moisture": "Block moisture to keep product crisp and prevent sogginess or caking.",
     "bullet_respiration": "Allow produce to breathe through micro-perforations to prevent fermentation.",
@@ -230,20 +232,18 @@
     "top_ranked": "Top Ranked Solution",
     "optimal_match": "Optimal Match",
     "structure": "Structure:",
-    "eco_score": "Sustainability",
-    "cost_tier": "Cost Class",
     "sustainability_badge": "Sustainability: {{score}}/100",
     "cost_badge_low": "Cost: Low (₹)",
     "cost_badge_medium": "Cost: Medium (₹₹)",
     "cost_badge_high": "Cost: High (₹₹₹)",
     "key_reasons_title": "Key Reasons for This Recommendation",
-    "justification_title": "Key Reasons for This Recommendation",
     "recommended_gauge": "Recommended Gauge:",
     "sealing_integrity": "Sealing Integrity:",
     "alternatives_title": "Alternative Recommendations",
     "eco_alt_label": "Eco-friendly alternative",
     "barrier_alt_label": "High-barrier alternative",
-    "cost_alt_label": "Cost-effective alternative",
+    "food_grade_certified": "100% Food-Grade Certified",
+    "astm_compliant": "ASTM Compliant",
     "technical_details_title": "Technical details (for experts)",
     "expand": "Show Details",
     "collapse": "Hide Details",
@@ -255,6 +255,16 @@
     "mechanical_strength": "Mechanical Strength",
     "seal_integrity": "Seal Integrity",
     "storage_handling": "Storage Handling",
+    "astm_otr_desc": "ASTM D3985 standard",
+    "astm_wvtr_desc": "ASTM F1249 standard",
+    "gas_flush_desc": "Gas flush compatibility",
+    "micro_perforated_required": "Micro-Perforated Required",
+    "continuous_barrier_film": "Continuous Barrier Film",
+    "respiratory_equilibrium": "Respiratory equilibrium",
+    "gauge_specification": "Gauge specification",
+    "puncture_defense": "Puncture & flex defense",
+    "thermal_bonding": "Thermal bonding strength",
+    "environmental_guideline": "Environmental guideline",
     "matrix_title": "Material Comparison Matrix",
     "col_option": "Option",
     "col_name": "Material Name",
@@ -326,6 +336,7 @@
   },
   "commodities": {
     "Tomato": "Tomato",
+    "Tomato (Fresh Vine)": "Tomato (Fresh Vine)",
     "Banana": "Banana",
     "Potato Chips": "Potato Chips",
     "Paneer": "Paneer (Cottage Cheese)",
@@ -334,9 +345,14 @@
     "Frozen Peas (IQF)": "Frozen Peas (IQF)",
     "Milk Powder": "Milk Powder",
     "Milk Powder (Full Cream)": "Milk Powder (Full Cream)",
+    "Biscuits": "Biscuits",
     "Roasted Nuts": "Roasted Nuts",
     "Leafy Vegetables": "Leafy Vegetables (Spinach)",
-    "Leafy Vegetables (Spinach)": "Leafy Vegetables (Spinach)"
+    "Leafy Vegetables (Spinach)": "Leafy Vegetables (Spinach)",
+    "Rice": "Rice",
+    "Rice (Milled Grain)": "Rice (Milled Grain)",
+    "Mango": "Mango",
+    "Fresh Cow Milk": "Fresh Cow Milk"
   },
   "categories": {
     "Fresh Produce": "Fresh Produce",
@@ -352,6 +368,49 @@
     "ambient": "Ambient (15°C to 25°C)",
     "chilled": "Chilled (0°C to 4°C)",
     "frozen": "Frozen (-18°C or below)"
+  },
+  "transport": {
+    "Ambient Standard (Truck / Rail)": "Ambient Standard (Truck / Rail)",
+    "Temperature-Controlled Cold Chain (Reefer)": "Temperature-Controlled Cold Chain (Reefer)",
+    "High-Humidity Marine Freight": "High-Humidity Marine Freight",
+    "Air Freight (Rapid Logistics)": "Air Freight (Rapid Logistics)",
+    "Local Short-Haul Distribution": "Local Short-Haul Distribution"
+  },
+  "formats": {
+    "Pillow Pouch": "Pillow Pouch",
+    "Stand-up Pouch (Doypack)": "Stand-up Pouch (Doypack)",
+    "Rigid Tray with Lidding Film": "Rigid Tray with Lidding Film",
+    "Vacuum Skin Packaging (VSP)": "Vacuum Skin Packaging (VSP)",
+    "Modified Atmosphere Packaging (MAP) Tray": "Modified Atmosphere Packaging (MAP) Tray",
+    "Perforated Bag / Clamshell": "Perforated Bag / Clamshell",
+    "Multi-wall Sack / Gusseted Bag": "Multi-wall Sack / Gusseted Bag"
+  },
+  "sustainability": {
+    "balanced": "Balanced (Cost & Performance First)",
+    "recyclable": "High Recyclability (Mono-material PE/PP)",
+    "compostable": "Bio-based / Industrially Compostable (PLA/Bio-film)",
+    "minimal_carbon": "Ultra-Lightweight / Low Carbon Footprint",
+    "low": "Low (Cost first)",
+    "medium": "Medium (Balanced)",
+    "high": "High (Eco-friendly / Recyclable)"
+  },
+  "options": {
+    "dont_know": "I don’t know – use typical value for this commodity",
+    "very_dry": "Very Dry (0–10% moisture)",
+    "dry": "Dry (10–30% moisture)",
+    "moist": "Moist (30–70% moisture)",
+    "very_moist": "Very Moist (70–100% moisture)",
+    "exact": "I know the exact value (Custom numeric)",
+    "acidic": "Acidic (pH 3.0–4.6)",
+    "neutral": "Neutral / Low-Acid (pH 4.7–7.0)",
+    "alkaline": "Alkaline (pH 7.1–8.5)",
+    "none": "None / Negligible (< 1%)",
+    "very_low": "Very Low (< 1%)",
+    "low": "Low (1% - 5%)",
+    "medium": "Medium (5% - 20%)",
+    "moderate": "Moderate (5% - 20%)",
+    "high": "High (> 20%)",
+    "very_high": "Very High (> 35%)"
   },
   "chat": {
     "title": "Voice & Text AI Packaging Assistant",
@@ -371,7 +430,10 @@
     "stop_reading": "Stop voice",
     "playing_audio": "Playing voice...",
     "detected_info": "Identified Parameters",
-    "use_in_form": "Use this info in Recommendation Form",
+    "label_commodity": "Commodity",
+    "label_storage": "Storage",
+    "label_shelf_life": "Shelf Life",
+    "use_in_form": "Use this info in form",
     "use_in_form_desc": "Transfer identified commodity, storage, and shelf-life parameters directly into the engineering calculation form.",
     "try_asking": "Try asking:",
     "prompt_1": "🍅 Tomato packaging for 15 days",
@@ -383,7 +445,6 @@
     "thinking": "Thinking...",
     "ai_assistant": "PackWise AI",
     "you": "You",
-    "offline_notice": "PackWise AI Assistant is ready.",
-    "use_in_form": "Use this info in form"
+    "offline_notice": "PackWise AI Assistant is ready."
   }
 }

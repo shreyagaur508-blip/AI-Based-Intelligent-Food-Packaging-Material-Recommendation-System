@@ -3,7 +3,7 @@ import { Languages, Check, ChevronDown, Globe } from 'lucide-react';
 import { useTranslation } from '../../i18n';
 
 export default function LanguageSelector({ variant = 'navbar', className = '' }) {
-  const { language, changeLanguage, languages, currentLanguageInfo } = useTranslation();
+  const { t, language, changeLanguage, languages, currentLanguageInfo } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -29,7 +29,7 @@ export default function LanguageSelector({ variant = 'navbar', className = '' })
       <div className={`space-y-2 ${className}`}>
         <div className="flex items-center gap-2 text-xs font-semibold text-slate-400 uppercase tracking-wider px-1">
           <Globe className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Language / भाषा / ಭಾಷೆ</span>
+          <span>{t('nav.select_language')}</span>
         </div>
         <div className="grid grid-cols-2 gap-2">
           {languages.map((lang) => {
@@ -76,8 +76,8 @@ export default function LanguageSelector({ variant = 'navbar', className = '' })
       {isOpen && (
         <div className="absolute right-0 mt-2 w-48 rounded-2xl bg-slate-900/98 backdrop-blur-2xl border border-slate-700/80 shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
           <div className="px-2.5 py-1.5 text-[10px] uppercase font-bold text-slate-400 border-b border-slate-800 mb-1 flex items-center justify-between">
-            <span>Select Language</span>
-            <span className="text-emerald-400">भाषा</span>
+            <span>{t('nav.select_language')}</span>
+            <span className="text-emerald-400">🌐</span>
           </div>
 
           <div className="space-y-0.5">

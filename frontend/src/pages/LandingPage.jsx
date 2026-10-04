@@ -161,7 +161,7 @@ export default function LandingPage() {
             </div>
             <div className="glass-panel p-4 text-center">
               <div className="text-2xl font-bold text-indigo-300 font-display">{t('landing.metric_explainable')}</div>
-              <div className="text-xs text-slate-400 mt-1">Rule Engine MCDA</div>
+              <div className="text-xs text-slate-400 mt-1">{t('landing.metric_mcda_sub')}</div>
             </div>
           </div>
         </div>

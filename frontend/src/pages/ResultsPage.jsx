@@ -519,9 +519,9 @@ export default function ResultsPage() {
                   <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
                     <span className="flex items-center gap-1 text-emerald-400 font-medium">
                       <CheckCircle2 className="w-3.5 h-3.5" />
-                      100% Food-Grade Certified
+                      {t('results.food_grade_certified')}
                     </span>
-                    <span className="text-slate-500">ASTM Compliant</span>
+                    <span className="text-slate-500">{t('results.astm_compliant')}</span>
                   </div>
                 </Card>
               );
@@ -558,7 +558,7 @@ export default function ResultsPage() {
               <div className="text-base font-bold text-white break-words">
                 {formatCategoryLabel(reqs.required_otr_category || recommendation.otr_requirement_category || 'Low OTR')}
               </div>
-              <div className="text-[11px] text-slate-400">ASTM D3985 standard</div>
+              <div className="text-[11px] text-slate-400">{t('results.astm_otr_desc')}</div>
             </Card>
 
             {/* WVTR */}
@@ -570,7 +570,7 @@ export default function ResultsPage() {
               <div className="text-base font-bold text-white break-words">
                 {formatCategoryLabel(reqs.required_wvtr_category || recommendation.wvtr_requirement_category || 'Low WVTR')}
               </div>
-              <div className="text-[11px] text-slate-400">ASTM F1249 standard</div>
+              <div className="text-[11px] text-slate-400">{t('results.astm_wvtr_desc')}</div>
             </Card>
 
             {/* MAP Suitability */}
@@ -582,7 +582,7 @@ export default function ResultsPage() {
               <div className="text-base font-bold text-white break-words">
                 {reqs.map_suitable || recommendation.map_suitability === 'Recommended' ? t('common.suitable') : t('common.not_required')}
               </div>
-              <div className="text-[11px] text-slate-400">Gas flush compatibility</div>
+              <div className="text-[11px] text-slate-400">{t('results.gas_flush_desc')}</div>
             </Card>
 
             {/* Breathable / Micro-Perforated */}
@@ -592,9 +592,9 @@ export default function ResultsPage() {
                 <span>{t('results.emap_breathability')}</span>
               </div>
               <div className="text-base font-bold text-white break-words">
-                {reqs.breathable_film_needed ? 'Micro-Perforated Required' : 'Continuous Barrier Film'}
+                {reqs.breathable_film_needed ? t('results.micro_perforated_required') : t('results.continuous_barrier_film')}
               </div>
-              <div className="text-[11px] text-slate-400">Respiratory equilibrium</div>
+              <div className="text-[11px] text-slate-400">{t('results.respiratory_equilibrium')}</div>
             </Card>
 
             {/* Thickness */}
@@ -606,7 +606,7 @@ export default function ResultsPage() {
               <div className="text-base font-bold text-white break-words">
                 {thickness?.recommended_microns || 45} µm ({thickness?.min_microns || 30}–{thickness?.max_microns || 60} µm)
               </div>
-              <div className="text-[11px] text-slate-400">Gauge specification</div>
+              <div className="text-[11px] text-slate-400">{t('results.gauge_specification')}</div>
             </Card>
 
             {/* Mechanical Strength */}
@@ -618,7 +618,7 @@ export default function ResultsPage() {
               <div className="text-base font-bold text-white break-words">
                 {formatCategoryLabel(reqs.mechanical_strength_requirement || recommendation.mechanical_strength_requirement || 'Medium')}
               </div>
-              <div className="text-[11px] text-slate-400">Puncture & flex defense</div>
+              <div className="text-[11px] text-slate-400">{t('results.puncture_defense')}</div>
             </Card>
 
             {/* Sealability */}
@@ -630,7 +630,7 @@ export default function ResultsPage() {
               <div className="text-base font-bold text-white break-words">
                 {formatCategoryLabel(reqs.sealability_requirement || recommendation.sealability_requirement || 'Hermetic Seal')}
               </div>
-              <div className="text-[11px] text-slate-400">Thermal bonding strength</div>
+              <div className="text-[11px] text-slate-400">{t('results.thermal_bonding')}</div>
             </Card>
 
             {/* Storage Recommendation */}
@@ -642,7 +642,7 @@ export default function ResultsPage() {
               <div className="text-base font-bold text-white break-words">
                 {recommendation.storage_recommendation || 'Maintain target cold chain setpoint'}
               </div>
-              <div className="text-[11px] text-slate-400">Environmental guideline</div>
+              <div className="text-[11px] text-slate-400">{t('results.environmental_guideline')}</div>
             </Card>
           </div>
         )}

@@ -146,6 +146,54 @@ export function I18nProvider({ children }) {
     [t]
   );
 
+  /**
+   * Translates transportation condition string
+   */
+  const getTransportName = useCallback(
+    (transportStr) => {
+      if (!transportStr) return '';
+      const translated = t(`transport.${transportStr}`);
+      return translated !== `transport.${transportStr}` ? translated : transportStr;
+    },
+    [t]
+  );
+
+  /**
+   * Translates packaging format string
+   */
+  const getFormatName = useCallback(
+    (formatStr) => {
+      if (!formatStr) return '';
+      const translated = t(`formats.${formatStr}`);
+      return translated !== `formats.${formatStr}` ? translated : formatStr;
+    },
+    [t]
+  );
+
+  /**
+   * Translates sustainability preference key or label
+   */
+  const getSustainabilityName = useCallback(
+    (keyOrLabel) => {
+      if (!keyOrLabel) return '';
+      const translated = t(`sustainability.${keyOrLabel}`);
+      return translated !== `sustainability.${keyOrLabel}` ? translated : keyOrLabel;
+    },
+    [t]
+  );
+
+  /**
+   * Translates general dropdown option codes
+   */
+  const getOptionLabel = useCallback(
+    (optCode) => {
+      if (!optCode) return '';
+      const translated = t(`options.${optCode}`);
+      return translated !== `options.${optCode}` ? translated : optCode;
+    },
+    [t]
+  );
+
   const contextValue = useMemo(
     () => ({
       t,
@@ -156,8 +204,24 @@ export function I18nProvider({ children }) {
       getCommodityName,
       getCategoryName,
       getStorageTypeName,
+      getTransportName,
+      getFormatName,
+      getSustainabilityName,
+      getOptionLabel,
     }),
-    [t, language, changeLanguage, currentLanguageInfo, getCommodityName, getCategoryName, getStorageTypeName]
+    [
+      t,
+      language,
+      changeLanguage,
+      currentLanguageInfo,
+      getCommodityName,
+      getCategoryName,
+      getStorageTypeName,
+      getTransportName,
+      getFormatName,
+      getSustainabilityName,
+      getOptionLabel,
+    ]
   );
 
   return <I18nContext.Provider value={contextValue}>{children}</I18nContext.Provider>;

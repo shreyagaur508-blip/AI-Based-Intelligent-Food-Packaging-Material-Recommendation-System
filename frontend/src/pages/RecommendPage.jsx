@@ -64,7 +64,16 @@ const INITIAL_FORM_STATE = {
 export default function RecommendPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { t, getCommodityName, getCategoryName, getStorageTypeName } = useTranslation();
+  const {
+    t,
+    getCommodityName,
+    getCategoryName,
+    getStorageTypeName,
+    getTransportName,
+    getFormatName,
+    getSustainabilityName,
+    getOptionLabel,
+  } = useTranslation();
 
   const [isAdvancedMode, setIsAdvancedMode] = useState(false);
   const [formData, setFormData] = useState(INITIAL_FORM_STATE);
@@ -110,7 +119,7 @@ export default function RecommendPage() {
         shelfLifeDays: prefill.desired_shelf_life_days ? prefill.desired_shelf_life_days.toString() : prev.shelfLifeDays,
       }));
 
-      setPresetNotice(`✨ Pre-filled parameters from PackWise AI Assistant for ${commName}`);
+      setPresetNotice(t('form.prefilled_notice', { name: getCommodityName(commName) }));
     }
   }, [location.state]);
 
@@ -307,22 +316,22 @@ export default function RecommendPage() {
 
   const moistureOptions = MOISTURE_CATEGORY_OPTIONS.map((opt) => ({
     value: opt.value,
-    label: opt.value === 'dont_know' ? t('form.opt_dont_know') : opt.label,
+    label: opt.value === 'dont_know' ? t('form.opt_dont_know') : (getOptionLabel(opt.value) !== opt.value ? getOptionLabel(opt.value) : opt.label),
   }));
 
   const phOptions = PH_CATEGORY_OPTIONS.map((opt) => ({
     value: opt.value,
-    label: opt.value === 'dont_know' ? t('form.opt_dont_know') : opt.label,
+    label: opt.value === 'dont_know' ? t('form.opt_dont_know') : (getOptionLabel(opt.value) !== opt.value ? getOptionLabel(opt.value) : opt.label),
   }));
 
   const oilFatOptions = OIL_FAT_CATEGORY_OPTIONS.map((opt) => ({
     value: opt.value,
-    label: opt.value === 'dont_know' ? t('form.opt_dont_know') : opt.label,
+    label: opt.value === 'dont_know' ? t('form.opt_dont_know') : (getOptionLabel(opt.value) !== opt.value ? getOptionLabel(opt.value) : opt.label),
   }));
 
   const respirationOptions = RESPIRATION_CATEGORY_OPTIONS.map((opt) => ({
     value: opt.value,
-    label: opt.value === 'dont_know' ? t('form.opt_dont_know') : opt.label,
+    label: opt.value === 'dont_know' ? t('form.opt_dont_know') : (getOptionLabel(opt.value) !== opt.value ? getOptionLabel(opt.value) : opt.label),
   }));
 
   return (
@@ -509,7 +518,7 @@ export default function RecommendPage() {
                       </div>
                       <div className="text-xs text-slate-300 font-medium">{getStorageTypeName(st.id)}</div>
                       <div className="text-[11px] text-slate-400 mt-2">
-                        Default: {st.defaultTemp}°C • {st.defaultRH}% RH
+                        {t('form.default_conditions', { temp: st.defaultTemp, rh: st.defaultRH })}
                       </div>
                     </div>
                   );
@@ -572,7 +581,7 @@ export default function RecommendPage() {
                     label={t('form.transport_condition_label')}
                     value={formData.transportCondition}
                     onChange={handleChange}
-                    options={TRANSPORTATION_CONDITIONS.map((tCond) => ({ value: tCond, label: tCond }))}
+                    options={TRANSPORTATION_CONDITIONS.map((tCond) => ({ value: tCond, label: getTransportName(tCond) }))}
                     helperText={t('form.transport_condition_helper')}
                   />
                 </div>
@@ -623,7 +632,7 @@ export default function RecommendPage() {
                     label={t('form.format_label')}
                     value={formData.packagingFormat}
                     onChange={handleChange}
-                    options={PACKAGING_FORMATS.map((f) => ({ value: f, label: f }))}
+                    options={PACKAGING_FORMATS.map((f) => ({ value: f, label: getFormatName(f) }))}
                     helperText={t('form.format_helper')}
                     tooltip={t('form.format_tooltip')}
                   />
@@ -633,7 +642,7 @@ export default function RecommendPage() {
                     label={t('form.sustainability_label')}
                     value={formData.sustainabilityPreference}
                     onChange={handleChange}
-                    options={SUSTAINABILITY_PREFERENCES.map((s) => ({ value: s.id, label: s.label }))}
+                    options={SUSTAINABILITY_PREFERENCES.map((s) => ({ value: s.id, label: getSustainabilityName(s.id) }))}
                     helperText={t('form.sustainability_helper')}
                     tooltip={t('form.sustainability_tooltip')}
                   />
