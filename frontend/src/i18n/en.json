@@ -379,10 +379,11 @@
     "prompt_3": "🥛 Fresh paneer cold chain packing",
     "prompt_4": "🌾 Wheat grain safe storage without pests",
     "prompt_5": "🥭 Fresh mango export packaging",
-    "welcome_greeting": "Namaste! I am your PackWise AI Assistant. Tell me what food product you want to pack, your storage conditions, or target shelf life. You can speak by clicking the microphone or type below!",
+    "welcome_greeting": "I am PackWise AI assistant. You can ask me about food packaging. First, tell me: which product is it? (e.g., potato chips, tomato, banana)",
     "thinking": "Thinking...",
     "ai_assistant": "PackWise AI",
     "you": "You",
-    "offline_notice": "PackWise AI Assistant is ready."
+    "offline_notice": "PackWise AI Assistant is ready.",
+    "use_in_form": "Use this info in form"
   }
 }

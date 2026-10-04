@@ -66,6 +66,14 @@ export default function ChatPage() {
           },
         ];
       }
+      if (prev.length === 1 && (prev[0].id === 'init-greeting' || prev[0].id.startsWith('init-'))) {
+        return [
+          {
+            ...prev[0],
+            content: greetingText,
+          },
+        ];
+      }
       return prev;
     });
   }, [t, language]);
@@ -420,11 +428,16 @@ export default function ChatPage() {
                   }`}
                 >
                   {/* Sender Name & Timestamp */}
-                  <div className="flex items-center justify-between gap-4 text-[11px] text-slate-400 mb-1.5 pb-1 border-b border-slate-800/50">
-                    <span className={isAI ? 'text-emerald-400 font-semibold' : 'text-emerald-200'}>
+                  <div
+                    className={`flex items-center justify-between gap-4 text-[11px] mb-1.5 pb-1 border-b ${
+                      isAI ? 'text-slate-400 border-slate-800/60' : 'text-emerald-100 border-emerald-500/30'
+                    }`}
+                  >
+                    <span className={`font-semibold flex items-center gap-1.5 ${isAI ? 'text-emerald-400' : 'text-white'}`}>
+                      {isAI ? <Bot className="w-3.5 h-3.5 text-emerald-400" /> : <User className="w-3.5 h-3.5 text-emerald-200" />}
                       {isAI ? t('chat.ai_assistant') : t('chat.you')}
                     </span>
-                    <span className="opacity-70">{msg.timestamp}</span>
+                    <span className={isAI ? 'opacity-70 text-slate-500' : 'text-emerald-100/75'}>{msg.timestamp}</span>
                   </div>
 
                   {/* Message Content */}
@@ -608,13 +621,20 @@ export default function ChatPage() {
               disabled={isLoading}
               className={`p-3 rounded-2xl font-medium transition-all duration-200 flex items-center justify-center shadow-lg ${
                 isListening
-                  ? 'bg-red-600 text-white shadow-red-900/50 scale-105 ring-4 ring-red-500/30 animate-pulse'
+                  ? 'bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-900/60 scale-105 ring-4 ring-red-500/50 animate-pulse'
                   : 'bg-gradient-to-tr from-emerald-600 to-teal-700 text-white hover:scale-105 shadow-emerald-950/50 hover:ring-2 hover:ring-emerald-400/40'
               }`}
               title={isListening ? t('chat.mic_stop') : t('chat.mic_click_to_speak')}
               aria-label="Voice input microphone"
             >
-              {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+              {isListening ? (
+                <div className="relative flex items-center justify-center">
+                  <MicOff className="w-5 h-5 text-white animate-pulse" />
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-400 rounded-full animate-ping" />
+                </div>
+              ) : (
+                <Mic className="w-5 h-5" />
+              )}
             </button>
 
             {/* Text Input Field */}

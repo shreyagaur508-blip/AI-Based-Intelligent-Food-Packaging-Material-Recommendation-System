@@ -379,10 +379,11 @@
     "prompt_3": "🥛 ताजा पनीर और कोल्ड चेन पैकिंग",
     "prompt_4": "🌾 गेहूं और अनाज का सुरक्षित भंडारण",
     "prompt_5": "🥭 ताजे आम के निर्यात की पैकेजिंग",
-    "welcome_greeting": "नमस्ते! मैं आपका PackWise AI सहायक हूँ। मुझे बताएं कि आप किस खाद्य उत्पाद की पैकेजिंग करना चाहते हैं, आपका भंडारण कैसा है या कितने दिन सुरक्षित रखना चाहते हैं। आप माइक पर क्लिक करके बोल सकते हैं या नीचे लिख सकते हैं!",
+    "welcome_greeting": "Main PackWise AI assistant hoon. Aap mujhse food packaging ke baare mein poochh sakte hain. Pehle bataiye: kaun sa product hai? (jaise aloo chips, tamatar, kela)",
     "thinking": "सोच रहा हूँ...",
     "ai_assistant": "PackWise AI",
-    "you": "आप",
-    "offline_notice": "PackWise AI सहायक तैयार है।"
+    "you": "You",
+    "offline_notice": "PackWise AI सहायक तैयार है।",
+    "use_in_form": "Use this info in form"
   }
 }
